@@ -1,0 +1,444 @@
+{
+  "schemaVersion": "1.0.0",
+  "fileMetadata": {
+    "name": "Sample Household Plan 2025–2027",
+    "createdAt": "2025-01-01T00:00:00.000Z",
+    "updatedAt": "2025-01-01T00:00:00.000Z",
+    "lastOpenedAt": "2025-01-01T00:00:00.000Z",
+    "initialLiquidBalance": 8500,
+    "currency": "USD"
+  },
+  "settings": {
+    "autosave": true,
+    "defaultViewScale": "month",
+    "defaultCumulativeChartMode": "separateChart",
+    "currency": "USD"
+  },
+  "accounts": [
+    {
+      "id": "acct-checking-001",
+      "name": "Main Checking",
+      "type": "checking",
+      "balance": 8500,
+      "currency": "USD",
+      "liquidity": "liquid",
+      "notes": "Primary day-to-day account",
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "acct-savings-001",
+      "name": "Emergency Fund",
+      "type": "savings",
+      "balance": 15000,
+      "currency": "USD",
+      "liquidity": "liquid",
+      "notes": "6-month emergency fund target",
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "acct-401k-001",
+      "name": "Employer 401k",
+      "type": "retirement",
+      "balance": 120000,
+      "currency": "USD",
+      "liquidity": "tiedUp",
+      "notes": "Vanguard target-date 2050 fund",
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    }
+  ],
+  "assets": [
+    {
+      "id": "asset-401k-001",
+      "name": "401k Balance",
+      "accountId": "acct-401k-001",
+      "currentValue": 120000,
+      "currency": "USD",
+      "liquidity": "tiedUp",
+      "liquidationRule": {
+        "mode": "fixedDelay",
+        "saleDelayDays": 3,
+        "transferDelayDays": 5,
+        "useBusinessDays": true
+      },
+      "fees": [
+        {
+          "id": "fee-401k-penalty",
+          "mode": "percentage",
+          "percentage": 10,
+          "label": "Early withdrawal penalty"
+        }
+      ],
+      "taxPercentage": 22,
+      "notes": "Early withdrawal incurs 10% penalty + 22% estimated income tax",
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    }
+  ],
+  "lineItems": [
+    {
+      "id": "li-salary-001",
+      "type": "income",
+      "name": "Monthly Salary (Net)",
+      "category": "Salary",
+      "amountRule": {
+        "mode": "fixed",
+        "fixedAmount": 5200,
+        "useProjectedValues": true,
+        "useConfirmedValues": true
+      },
+      "recurrenceRule": {
+        "mode": "infinite",
+        "startDate": "2025-01-15",
+        "interval": 1,
+        "unit": "month",
+        "dayOfMonth": 15,
+        "businessDayRule": "previousBusinessDay",
+        "specialRule": null
+      },
+      "confirmationStatus": "confirmed",
+      "isOptional": false,
+      "seriesComment": "After-tax net salary. Deposited on the 15th (or prior business day if weekend).",
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "li-bonus-001",
+      "type": "income",
+      "name": "Annual Performance Bonus",
+      "category": "Bonus",
+      "amountRule": {
+        "mode": "fixed",
+        "fixedAmount": 8000,
+        "useProjectedValues": true,
+        "useConfirmedValues": true
+      },
+      "recurrenceRule": {
+        "mode": "infinite",
+        "startDate": "2025-03-15",
+        "interval": 1,
+        "unit": "year",
+        "businessDayRule": "none",
+        "specialRule": null
+      },
+      "confirmationStatus": "projected",
+      "isOptional": false,
+      "seriesComment": "Q1 performance bonus. Amount is estimated — confirm when received.",
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "li-commission-001",
+      "type": "income",
+      "name": "Sales Commission (10% of base)",
+      "category": "Bonus",
+      "amountRule": {
+        "mode": "percentageOfLineItem",
+        "percentage": 10,
+        "sourceLineItemId": "li-salary-001",
+        "useProjectedValues": false,
+        "useConfirmedValues": true
+      },
+      "recurrenceRule": {
+        "mode": "infinite",
+        "startDate": "2025-06-01",
+        "interval": 6,
+        "unit": "month",
+        "businessDayRule": "none",
+        "specialRule": null
+      },
+      "confirmationStatus": "projected",
+      "isOptional": false,
+      "seriesComment": "Commission paid semiannually — 10% of monthly net salary. Confirmed values only.",
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "li-rent-001",
+      "type": "expense",
+      "name": "Rent",
+      "category": "Housing",
+      "amountRule": {
+        "mode": "fixed",
+        "fixedAmount": 1850,
+        "useProjectedValues": true,
+        "useConfirmedValues": true
+      },
+      "recurrenceRule": {
+        "mode": "infinite",
+        "startDate": "2025-01-01",
+        "interval": 1,
+        "unit": "month",
+        "dayOfMonth": 1,
+        "businessDayRule": "none",
+        "specialRule": null
+      },
+      "confirmationStatus": "confirmed",
+      "isOptional": false,
+      "seriesComment": "Due on the 1st each month.",
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "li-utilities-001",
+      "type": "expense",
+      "name": "Utilities (Electric + Gas)",
+      "category": "Utilities",
+      "amountRule": {
+        "mode": "fixed",
+        "fixedAmount": 180,
+        "useProjectedValues": true,
+        "useConfirmedValues": true
+      },
+      "recurrenceRule": {
+        "mode": "infinite",
+        "startDate": "2025-01-20",
+        "interval": 1,
+        "unit": "month",
+        "businessDayRule": "none",
+        "specialRule": null
+      },
+      "confirmationStatus": "projected",
+      "isOptional": false,
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "li-groceries-001",
+      "type": "expense",
+      "name": "Groceries",
+      "category": "Groceries",
+      "amountRule": {
+        "mode": "fixed",
+        "fixedAmount": 600,
+        "useProjectedValues": true,
+        "useConfirmedValues": true
+      },
+      "recurrenceRule": {
+        "mode": "infinite",
+        "startDate": "2025-01-01",
+        "interval": 1,
+        "unit": "month",
+        "businessDayRule": "none",
+        "specialRule": null
+      },
+      "confirmationStatus": "projected",
+      "isOptional": false,
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "li-internet-001",
+      "type": "expense",
+      "name": "Internet & Phone",
+      "category": "Utilities",
+      "amountRule": {
+        "mode": "fixed",
+        "fixedAmount": 145,
+        "useProjectedValues": true,
+        "useConfirmedValues": true
+      },
+      "recurrenceRule": {
+        "mode": "infinite",
+        "startDate": "2025-01-05",
+        "interval": 1,
+        "unit": "month",
+        "dayOfMonth": 5,
+        "businessDayRule": "none",
+        "specialRule": null
+      },
+      "confirmationStatus": "confirmed",
+      "isOptional": false,
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "li-insurance-auto-001",
+      "type": "expense",
+      "name": "Auto Insurance (Semiannual)",
+      "category": "Insurance",
+      "amountRule": {
+        "mode": "fixed",
+        "fixedAmount": 780,
+        "useProjectedValues": true,
+        "useConfirmedValues": true
+      },
+      "recurrenceRule": {
+        "mode": "infinite",
+        "startDate": "2025-01-20",
+        "interval": 6,
+        "unit": "month",
+        "businessDayRule": "none",
+        "specialRule": null
+      },
+      "confirmationStatus": "confirmed",
+      "isOptional": false,
+      "seriesComment": "Paid every 6 months: Jan 20 and Jul 20. This is NOT spread monthly — it appears only in the months it is due.",
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "li-insurance-health-001",
+      "type": "expense",
+      "name": "Annual Health Deductible (est.)",
+      "category": "Healthcare",
+      "amountRule": {
+        "mode": "fixed",
+        "fixedAmount": 2400,
+        "useProjectedValues": true,
+        "useConfirmedValues": true
+      },
+      "recurrenceRule": {
+        "mode": "infinite",
+        "startDate": "2025-04-01",
+        "interval": 1,
+        "unit": "year",
+        "businessDayRule": "none",
+        "specialRule": null
+      },
+      "confirmationStatus": "projected",
+      "isOptional": false,
+      "seriesComment": "Estimated annual out-of-pocket maximum. Actual dates vary — this is a planning estimate recorded on April 1 each year.",
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "li-subscription-001",
+      "type": "expense",
+      "name": "Subscriptions (Streaming + Apps)",
+      "category": "Subscriptions",
+      "amountRule": {
+        "mode": "fixed",
+        "fixedAmount": 65,
+        "useProjectedValues": true,
+        "useConfirmedValues": true
+      },
+      "recurrenceRule": {
+        "mode": "infinite",
+        "startDate": "2025-01-10",
+        "interval": 1,
+        "unit": "month",
+        "businessDayRule": "none",
+        "specialRule": null
+      },
+      "confirmationStatus": "confirmed",
+      "isOptional": false,
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "li-gym-001",
+      "type": "expense",
+      "name": "Gym Membership (optional)",
+      "category": "Entertainment",
+      "amountRule": {
+        "mode": "fixed",
+        "fixedAmount": 55,
+        "useProjectedValues": true,
+        "useConfirmedValues": true
+      },
+      "recurrenceRule": {
+        "mode": "infinite",
+        "startDate": "2025-01-01",
+        "interval": 1,
+        "unit": "month",
+        "businessDayRule": "none",
+        "specialRule": null
+      },
+      "confirmationStatus": "confirmed",
+      "isOptional": true,
+      "optionalRule": {
+        "mode": "includeIfPeriodSurplusGreaterThan",
+        "threshold": 300
+      },
+      "seriesComment": "Only included in months where required-expense surplus exceeds $300.",
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "li-vacation-001",
+      "type": "expense",
+      "name": "Summer Vacation (planned)",
+      "category": "Entertainment",
+      "amountRule": {
+        "mode": "fixed",
+        "fixedAmount": 3500,
+        "useProjectedValues": true,
+        "useConfirmedValues": true
+      },
+      "recurrenceRule": {
+        "mode": "specificDates",
+        "specificDates": ["2025-07-01", "2026-07-01"]
+      },
+      "confirmationStatus": "projected",
+      "isOptional": false,
+      "seriesComment": "Planned vacation spending for July 2025 and July 2026. These are lump-sum occurrences, not spread monthly. This is the key planning event — ensure cumulative surplus is ≥ $3,500 before July.",
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "li-car-repair-001",
+      "type": "expense",
+      "name": "Annual Car Maintenance Budget",
+      "category": "Transport",
+      "amountRule": {
+        "mode": "fixed",
+        "fixedAmount": 1200,
+        "useProjectedValues": true,
+        "useConfirmedValues": true
+      },
+      "recurrenceRule": {
+        "mode": "infinite",
+        "startDate": "2025-10-01",
+        "interval": 1,
+        "unit": "year",
+        "businessDayRule": "none",
+        "specialRule": null
+      },
+      "confirmationStatus": "projected",
+      "isOptional": false,
+      "seriesComment": "Annual maintenance budget. Recorded in October as a planning entry.",
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    }
+  ],
+  "occurrenceOverrides": [
+    {
+      "id": "ovr-bonus-2025",
+      "lineItemId": "li-bonus-001",
+      "occurrenceDate": "2025-03-15",
+      "amountOverride": 9200,
+      "confirmationStatusOverride": "confirmed",
+      "comment": "Actual bonus received: $9,200 (higher than estimate). Updated after payroll deposit.",
+      "updatedAt": "2025-03-16T00:00:00.000Z"
+    }
+  ],
+  "reports": [
+    {
+      "id": "rpt-2025-annual",
+      "name": "2025 Full Year Summary",
+      "type": "yearly",
+      "startPeriod": "2025-01-01",
+      "endPeriod": "2025-12-31",
+      "createdAt": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "rpt-2025-monthly",
+      "name": "2025 Monthly Detail",
+      "type": "monthly",
+      "startPeriod": "2025-01-01",
+      "endPeriod": "2025-12-31",
+      "createdAt": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "rpt-q1-2025",
+      "name": "Q1 2025 Quarterly",
+      "type": "quarterly",
+      "startPeriod": "2025-01-01",
+      "numberOfPeriods": 4,
+      "createdAt": "2025-01-01T00:00:00.000Z"
+    }
+  ]
+}
