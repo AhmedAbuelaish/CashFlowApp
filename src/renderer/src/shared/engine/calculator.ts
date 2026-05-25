@@ -516,11 +516,11 @@ function computePeriodSummaries(
   allAccounts: AccountMap,
   rangeStart: Date
 ): PeriodSummary[] {
-  let cumulativeSurplus = 0
-  // Determine the opening liquid balance from account balances.
-  // Falls back to fileMetadata.initialLiquidBalance when no accounts are defined.
+  // Cumulative surplus is the running liquid balance: it starts from the actual
+  // account balance (not 0) so that positive = cash on hand, negative = deficit.
   let beginningBalance = initialBalance
   let beginningIlliquid = sumSetupIlliquid(allAccounts)
+  let cumulativeSurplus = initialBalance
   // lastSyncDate tracks which AccountBalanceUpdate was most recently applied so
   // we only override the running balance when a *new* update arrives (sync point).
   let lastSyncDate: string | null = null
@@ -529,6 +529,7 @@ function computePeriodSummaries(
     const initial = getEffectiveBalances(allAccounts, balanceUpdates, rangeStart)
     beginningBalance = initial.liquid
     beginningIlliquid = initial.illiquid
+    cumulativeSurplus = initial.liquid
     lastSyncDate = initial.latestUpdateDate
   }
 
@@ -546,8 +547,11 @@ function computePeriodSummaries(
 
     let isSyncPoint = false
     if (allAccounts.size > 0 && latestUpdateDate !== lastSyncDate) {
+      // New AccountBalanceUpdate: anchor both the running balance and cumulative
+      // to the user-defined total so forward projections start from reality.
       beginningBalance = liquid
       beginningIlliquid = illiquid
+      cumulativeSurplus = liquid
       lastSyncDate = latestUpdateDate
       isSyncPoint = true
     }
