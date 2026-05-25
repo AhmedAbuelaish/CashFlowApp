@@ -73,6 +73,8 @@ export default function Settings() {
             value={settings.defaultViewScale}
             onChange={e => updateSettings({ defaultViewScale: e.target.value as ViewScale })}
           >
+            <option value="day">Day</option>
+            <option value="week">Week</option>
             <option value="month">Month</option>
             <option value="quarter">Quarter</option>
             <option value="halfYear">Half-Year</option>
