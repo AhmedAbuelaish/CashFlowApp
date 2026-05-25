@@ -152,16 +152,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (!file.accountBalanceUpdates) file.accountBalanceUpdates = []
 
     // ── Migration: move top-level legacy assets into Account.assets ──
-    if (file.assets && file.assets.length > 0) {
+    const legacyAssets = (file as Record<string, unknown>).assets as Array<Record<string, unknown>> | undefined
+    if (Array.isArray(legacyAssets) && legacyAssets.length > 0) {
       file.accounts = file.accounts.map(acc => {
-        const matching = file.assets!.filter(a => a.accountId === acc.id)
+        const matching = legacyAssets.filter(a => a.accountId === acc.id)
         if (matching.length === 0) return acc
         const migratedAssets = matching.map(({ id, name, currentValue, currency, liquidity, liquidationRule, fees, taxPercentage, notes, createdAt, updatedAt }) => ({
           id, name, currentValue, currency, liquidity, liquidationRule, fees, taxPercentage, notes, createdAt, updatedAt
-        }))
+        })) as import('../shared/types').AccountAsset[]
         return { ...acc, assets: [...(acc.assets ?? []), ...migratedAssets] }
       })
-      delete file.assets
+      delete (file as Record<string, unknown>).assets
     }
 
     const scale = file.settings.defaultViewScale ?? 'month'

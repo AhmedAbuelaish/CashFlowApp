@@ -19,8 +19,6 @@ export interface CashFlowFile {
   fileMetadata: FileMetadata
   settings: AppSettings
   accounts: Account[]
-  /** @deprecated Assets are now embedded in Account.assets. Kept for migration only. */
-  assets?: LegacyAsset[]
   accountBalanceUpdates: AccountBalanceUpdate[]
   lineItems: LineItem[]
   occurrenceOverrides: OccurrenceOverride[]
@@ -75,22 +73,6 @@ export interface Account {
   notes?: string
   /** Sub-assets held within this account, each with their own liquidation rules */
   assets?: AccountAsset[]
-  createdAt: string
-  updatedAt: string
-}
-
-/** Kept only for migrating old .cashflow.json files that still have a top-level assets array */
-export interface LegacyAsset {
-  id: string
-  name: string
-  accountId: string
-  currentValue: number
-  currency: string
-  liquidity: LiquidityType
-  liquidationRule?: LiquidationRule
-  fees?: FeeRule[]
-  taxPercentage?: number
-  notes?: string
   createdAt: string
   updatedAt: string
 }

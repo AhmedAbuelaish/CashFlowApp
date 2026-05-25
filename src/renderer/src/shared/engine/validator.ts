@@ -9,7 +9,6 @@ import type {
   RecurrenceRule,
   AmountRule,
   Account,
-  Asset,
   ValidationResult
 } from '../types'
 
@@ -61,7 +60,6 @@ export function validateFile(data: unknown): ValidationResult {
   }
 
   if (!Array.isArray(f.accounts)) warnings.push('accounts is missing or not an array')
-  if (!Array.isArray(f.assets)) warnings.push('assets is missing or not an array')
   if (!Array.isArray(f.occurrenceOverrides)) warnings.push('occurrenceOverrides is missing')
   if (!Array.isArray(f.reports)) warnings.push('reports is missing or not an array')
 

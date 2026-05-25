@@ -152,27 +152,24 @@ export default function AccountsList() {
   const variances: ReconciliationVariance[] = calcResult?.reconciliationVariances ?? []
 
   // ── Panel open/close state ────────────────────────────────
-  // Assets section is OPEN by default when an account has assets.
-  // We only store which accounts have been EXPLICITLY CLOSED by the user.
-  const [explicitlyClosed, setExplicitlyClosed] = useState<Set<string>>(new Set())
+  // panelOverrides maps `${accountId}:${section}` → explicit open/closed state.
+  // Absent keys use the default: assets open when the account has assets, history closed.
+  const [panelOverrides, setPanelOverrides] = useState<Map<string, boolean>>(new Map())
 
   function isPanelOpen(account: Account, section: 'assets' | 'history'): boolean {
     const key = `${account.id}:${section}`
-    if (explicitlyClosed.has(key)) return false
-    // Default open state: assets open when account has assets, history closed
+    const override = panelOverrides.get(key)
+    if (override !== undefined) return override
     return section === 'assets' && (account.assets ?? []).length > 0
   }
 
   function togglePanel(account: Account, section: 'assets' | 'history') {
     const key = `${account.id}:${section}`
-    setExplicitlyClosed(s => {
-      const next = new Set(s)
-      if (isPanelOpen(account, section)) {
-        next.add(key)       // currently open → close it
-      } else {
-        next.delete(key)    // currently closed → open it
-      }
-      return next
+    const next = !isPanelOpen(account, section)
+    setPanelOverrides(prev => {
+      const m = new Map(prev)
+      m.set(key, next)
+      return m
     })
   }
 
@@ -508,7 +505,7 @@ export default function AccountsList() {
       {showQuickValue && <QuickValueForm account={showQuickValue.account} asset={showQuickValue.asset} onClose={() => setShowQuickValue(null)} />}
       {showAssetXfer && <AssetTransferForm account={showAssetXfer} onClose={() => setShowAssetXfer(null)} />}
       {showUpdateForm !== null && (
-        <AccountBalanceUpdateForm accountId={showUpdateForm.accountId} accounts={accounts} assets={[]}
+        <AccountBalanceUpdateForm accountId={showUpdateForm.accountId} accounts={accounts}
           existing={showUpdateForm.existing}
           onSave={data => { if (showUpdateForm.existing) editUpdate(showUpdateForm.existing.id, data); else addUpdate(data); setShowUpdateForm(null) }}
           onClose={() => setShowUpdateForm(null)} />

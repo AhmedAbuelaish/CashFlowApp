@@ -10,7 +10,6 @@ import { format } from 'date-fns'
 import Modal from '../shared/Modal'
 import type {
   Account,
-  Asset,
   AccountBalanceUpdate,
   LiquidityType,
   ReconciliationReason
@@ -62,10 +61,9 @@ const RECONCILIATION_REASON_LABELS: Record<ReconciliationReason, string> = {
 // ─── Props ────────────────────────────────────────────────────
 
 interface Props {
-  /** Pre-selected account/asset; if null, a dropdown is shown */
+  /** Pre-selected account; if omitted, a dropdown is shown */
   accountId?: string
   accounts: Account[]
-  assets: Asset[]
   /** Existing record when editing; undefined when adding */
   existing?: AccountBalanceUpdate
   onSave: (data: Omit<AccountBalanceUpdate, 'id' | 'createdAt' | 'updatedAt'>) => void
@@ -77,16 +75,12 @@ interface Props {
 export default function AccountBalanceUpdateForm({
   accountId: preselectedId,
   accounts,
-  assets,
   existing,
   onSave,
   onClose
 }: Props) {
-  // Combine accounts + assets into a single selection list
-  const allEntries: Array<{ id: string; name: string; liquidity: LiquidityType; type: string }> = [
-    ...accounts.map(a => ({ id: a.id, name: a.name, liquidity: a.liquidity, type: a.type })),
-    ...assets.map(a => ({ id: a.id, name: a.name, liquidity: a.liquidity, type: 'asset' }))
-  ]
+  const allEntries: Array<{ id: string; name: string; liquidity: LiquidityType; type: string }> =
+    accounts.map(a => ({ id: a.id, name: a.name, liquidity: a.liquidity, type: a.type }))
 
   const [selectedAccountId, setSelectedAccountId] = useState<string>(
     existing?.accountId ?? preselectedId ?? allEntries[0]?.id ?? ''

@@ -34,7 +34,6 @@ function makeFile(overrides: Partial<CashFlowFile> = {}): CashFlowFile {
       currency: 'USD'
     },
     accounts: [],
-    assets: [],
     accountBalanceUpdates: [],
     lineItems: [],
     occurrenceOverrides: [],
