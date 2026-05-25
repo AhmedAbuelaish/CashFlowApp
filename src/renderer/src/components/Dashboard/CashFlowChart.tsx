@@ -41,7 +41,7 @@ const COLORS = {
 // Applied behind all chart elements with transparency.
 const ZONE_FILL: Record<ZoneType, string> = {
   past:          'rgba(148, 163, 184, 0.12)',  // blue-grey — muted past
-  current:       'rgba(250, 204, 21,  0.25)',  // amber gold — you are here
+  current:       'rgba(96, 165, 250, 0.22)',   // blue — you are here
   futureSurplus: 'rgba(52,  211, 153, 0.08)',  // faint green — healthy future
   yellow:        'rgba(234, 179, 8,   0.28)',  // yellow — liquidation action window
   futureDeficit: 'rgba(248, 113, 113, 0.13)',  // faint red — projected deficit
@@ -218,7 +218,7 @@ export default function CashFlowChart({ result, cumulativeMode, currency, accoun
       dataKey="period"
       tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
       axisLine={{ stroke: 'var(--border)' }}
-      tickLine={false}
+      tickLine={{ stroke: 'var(--border)' }}
       interval="preserveStartEnd"
     />
   )

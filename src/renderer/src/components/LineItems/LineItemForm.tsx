@@ -30,9 +30,6 @@ type Props =
       onSaved?: (id: string) => void
     }
 
-const CATEGORIES_INCOME = ['Salary', 'Bonus', 'Investment', 'Rental', 'Freelance', 'Benefit', 'Transfer', 'Other']
-const CATEGORIES_EXPENSE = ['Housing', 'Utilities', 'Groceries', 'Transport', 'Insurance', 'Healthcare', 'Subscriptions', 'Dining', 'Entertainment', 'Education', 'Savings', 'Debt', 'Taxes', 'Other']
-
 function today() {
   return format(new Date(), 'yyyy-MM-dd')
 }
@@ -95,7 +92,16 @@ export default function LineItemForm(props: Props) {
   const [previewOccurrences, setPreviewOccurrences] = useState<string[]>([])
   const [showPreview, setShowPreview] = useState(false)
 
-  const categories = type === 'income' ? CATEGORIES_INCOME : CATEGORIES_EXPENSE
+  const allCategories = useAppStore(s => s.currentFile?.categories ?? [])
+  const typedCategories = allCategories.filter(c => c.type === type)
+
+  const isOneTime = ['singleDate', 'specificDates'].includes(recurrenceRule.mode)
+  const [scheduleType, setScheduleType] = useState<'onetime' | 'recurring'>(isOneTime ? 'onetime' : 'recurring')
+  const [finiteMode, setFiniteMode] = useState<'byCount' | 'untilDate'>(
+    recurrenceRule.mode === 'finiteByCount' ? 'byCount' : 'untilDate'
+  )
+  const [noEnd, setNoEnd] = useState(recurrenceRule.mode === 'infinite')
+
   const lineItems = currentFile?.lineItems ?? []
   const incomeItems = lineItems.filter(li => li.id !== existingItem?.id && li.amountRule.mode === 'fixed')
 
@@ -126,20 +132,19 @@ export default function LineItemForm(props: Props) {
     }
 
     const rr = recurrenceRule
-    if (rr.mode === 'singleDate' && !rr.singleDate) errs.push('Single date is required.')
-    if (rr.mode === 'specificDates' && (!rr.specificDates || rr.specificDates.length === 0))
-      errs.push('At least one date is required.')
-    if (['finiteByCount', 'finiteUntilDate', 'infinite'].includes(rr.mode)) {
+    if (scheduleType === 'onetime') {
+      if (!rr.specificDates || rr.specificDates.length === 0) errs.push('At least one date is required.')
+    } else {
       if (!rr.startDate) errs.push('Start date is required.')
       if (!rr.interval || rr.interval < 1) errs.push('Interval must be at least 1.')
       if (!rr.unit) errs.push('Recurrence unit is required.')
-    }
-    if (rr.mode === 'finiteByCount' && (!rr.count || rr.count < 1))
-      errs.push('Count must be at least 1.')
-    if (rr.mode === 'finiteUntilDate') {
-      if (!rr.untilDate) errs.push('End date is required.')
-      if (rr.startDate && rr.untilDate && rr.untilDate <= rr.startDate)
-        errs.push('End date must be after start date.')
+      if (!noEnd) {
+        if (finiteMode === 'byCount' && (!rr.count || rr.count < 1)) errs.push('Count must be at least 1.')
+        if (finiteMode === 'untilDate') {
+          if (!rr.untilDate) errs.push('End date is required.')
+          if (rr.startDate && rr.untilDate && rr.untilDate <= rr.startDate) errs.push('End date must be after start date.')
+        }
+      }
     }
     if (isOptional && isNaN(optionalRule.threshold))
       errs.push('Optional threshold must be a number.')
@@ -278,7 +283,7 @@ export default function LineItemForm(props: Props) {
             <label className="form-label">Category *</label>
             <select className="form-input" value={category} onChange={e => setCategory(e.target.value)}>
               <option value="">— Select —</option>
-              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+              {typedCategories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
               <option value="__custom__">Custom…</option>
             </select>
           </div>
@@ -405,8 +410,8 @@ export default function LineItemForm(props: Props) {
                     onChange={e => setAmountRule(prev => ({ ...prev, sourceCategory: e.target.value || undefined }))}
                   >
                     <option value="">— Select Category —</option>
-                    {[...CATEGORIES_INCOME, ...CATEGORIES_EXPENSE].map(c => (
-                      <option key={c} value={c}>{c}</option>
+                    {allCategories.map(c => (
+                      <option key={c.id} value={c.name}>{c.name} ({c.type})</option>
                     ))}
                   </select>
                 </div>
@@ -415,49 +420,45 @@ export default function LineItemForm(props: Props) {
           </div>
         </div>
 
-        {/* Recurrence Section */}
+        {/* Schedule */}
         <div style={{ marginTop: '1.25rem' }}>
           <div style={{ fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.6rem' }}>
             Schedule
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Recurrence Mode</label>
-            <select
-              className="form-input"
-              value={recurrenceRule.mode}
-              onChange={e => setRecurrenceRule(prev => ({ ...prev, mode: e.target.value as RecurrenceRule['mode'] }))}
-            >
-              <option value="singleDate">Single Date</option>
-              <option value="specificDates">Specific Dates (manual list)</option>
-              <option value="finiteByCount">Finite — by count</option>
-              <option value="finiteUntilDate">Finite — until date</option>
-              <option value="infinite">Recurring (no end)</option>
-            </select>
+          {/* One-time / Recurring toggle */}
+          <div style={{ display: 'flex', gap: '0', marginBottom: '1rem', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)', width: 'fit-content' }}>
+            {(['onetime', 'recurring'] as const).map(mode => (
+              <button
+                key={mode}
+                onClick={() => {
+                  setScheduleType(mode)
+                  if (mode === 'onetime') {
+                    setRecurrenceRule(prev => ({ ...prev, mode: 'specificDates', specificDates: prev.specificDates ?? [] }))
+                  } else {
+                    const rMode = noEnd ? 'infinite' : finiteMode === 'byCount' ? 'finiteByCount' : 'finiteUntilDate'
+                    setRecurrenceRule(prev => ({ ...prev, mode: rMode, startDate: prev.startDate ?? today(), interval: prev.interval ?? 1, unit: prev.unit ?? 'month' }))
+                  }
+                }}
+                style={{
+                  padding: '0.35rem 0.9rem', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem',
+                  background: scheduleType === mode ? 'var(--color-primary, #6366f1)' : 'var(--bg-card)',
+                  color: scheduleType === mode ? '#fff' : 'var(--text-muted)'
+                }}
+              >
+                {mode === 'onetime' ? 'One-time' : 'Recurring'}
+              </button>
+            ))}
           </div>
 
-          {recurrenceRule.mode === 'singleDate' && (
+          {/* One-time: date picker */}
+          {scheduleType === 'onetime' && (
             <div className="form-group">
-              <label className="form-label">Date *</label>
-              <input
-                type="date"
-                className="form-input"
-                value={recurrenceRule.singleDate ?? ''}
-                onChange={e => setRecurrenceRule(prev => ({ ...prev, singleDate: e.target.value }))}
-              />
-            </div>
-          )}
-
-          {recurrenceRule.mode === 'specificDates' && (
-            <div className="form-group">
-              <label className="form-label">Dates *</label>
+              <label className="form-label">Date(s) *</label>
               <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                 <input
-                  type="date"
-                  className="form-input"
-                  value={newSpecificDate}
-                  onChange={e => setNewSpecificDate(e.target.value)}
-                  style={{ flex: 1 }}
+                  type="date" className="form-input" value={newSpecificDate}
+                  onChange={e => setNewSpecificDate(e.target.value)} style={{ flex: 1 }}
                 />
                 <button className="btn btn-secondary" onClick={addSpecificDate} style={{ whiteSpace: 'nowrap' }}>Add Date</button>
               </div>
@@ -469,40 +470,27 @@ export default function LineItemForm(props: Props) {
                   </span>
                 ))}
               </div>
+              {(recurrenceRule.specificDates ?? []).length === 0 && (
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 4 }}>Add one or more dates above.</div>
+              )}
             </div>
           )}
 
-          {['finiteByCount', 'finiteUntilDate', 'infinite'].includes(recurrenceRule.mode) && (
+          {/* Recurring: interval + end */}
+          {scheduleType === 'recurring' && (
             <>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
                 <div className="form-group">
                   <label className="form-label">Start Date *</label>
-                  <input
-                    type="date"
-                    className="form-input"
-                    value={recurrenceRule.startDate ?? ''}
-                    onChange={e => setRecurrenceRule(prev => ({ ...prev, startDate: e.target.value }))}
-                  />
+                  <input type="date" className="form-input" value={recurrenceRule.startDate ?? ''} onChange={e => setRecurrenceRule(prev => ({ ...prev, startDate: e.target.value }))} />
                 </div>
-
                 <div className="form-group">
                   <label className="form-label">Every</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={recurrenceRule.interval ?? 1}
-                    onChange={e => setRecurrenceRule(prev => ({ ...prev, interval: parseInt(e.target.value) || 1 }))}
-                    min="1"
-                  />
+                  <input type="number" className="form-input" value={recurrenceRule.interval ?? 1} onChange={e => setRecurrenceRule(prev => ({ ...prev, interval: parseInt(e.target.value) || 1 }))} min="1" />
                 </div>
-
                 <div className="form-group">
                   <label className="form-label">Unit</label>
-                  <select
-                    className="form-input"
-                    value={recurrenceRule.unit ?? 'month'}
-                    onChange={e => setRecurrenceRule(prev => ({ ...prev, unit: e.target.value as RecurrenceRule['unit'] }))}
-                  >
+                  <select className="form-input" value={recurrenceRule.unit ?? 'month'} onChange={e => setRecurrenceRule(prev => ({ ...prev, unit: e.target.value as RecurrenceRule['unit'] }))}>
                     <option value="day">Day(s)</option>
                     <option value="week">Week(s)</option>
                     <option value="month">Month(s)</option>
@@ -515,32 +503,16 @@ export default function LineItemForm(props: Props) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div className="form-group">
                     <label className="form-label">Special Day Rule</label>
-                    <select
-                      className="form-input"
-                      value={recurrenceRule.specialRule ?? ''}
-                      onChange={e => setRecurrenceRule(prev => ({
-                        ...prev,
-                        specialRule: (e.target.value || null) as any,
-                        dayOfMonth: e.target.value ? undefined : prev.dayOfMonth
-                      }))}
-                    >
+                    <select className="form-input" value={recurrenceRule.specialRule ?? ''} onChange={e => setRecurrenceRule(prev => ({ ...prev, specialRule: (e.target.value || null) as any, dayOfMonth: e.target.value ? undefined : prev.dayOfMonth }))}>
                       <option value="">None (use start day)</option>
                       <option value="firstBusinessDayOfMonth">First business day of month</option>
                       <option value="lastBusinessDayOfMonth">Last business day of month</option>
                     </select>
                   </div>
-
                   {!recurrenceRule.specialRule && (
                     <div className="form-group">
                       <label className="form-label">Day of Month Override</label>
-                      <input
-                        type="number"
-                        className="form-input"
-                        value={recurrenceRule.dayOfMonth ?? ''}
-                        onChange={e => setRecurrenceRule(prev => ({ ...prev, dayOfMonth: parseInt(e.target.value) || undefined }))}
-                        min="1" max="31"
-                        placeholder="e.g. 15 (blank = use start date day)"
-                      />
+                      <input type="number" className="form-input" value={recurrenceRule.dayOfMonth ?? ''} onChange={e => setRecurrenceRule(prev => ({ ...prev, dayOfMonth: parseInt(e.target.value) || undefined }))} min="1" max="31" placeholder="e.g. 15" />
                     </div>
                   )}
                 </div>
@@ -548,51 +520,59 @@ export default function LineItemForm(props: Props) {
 
               <div className="form-group">
                 <label className="form-label">Business Day Adjustment</label>
-                <select
-                  className="form-input"
-                  value={recurrenceRule.businessDayRule ?? 'none'}
-                  onChange={e => setRecurrenceRule(prev => ({ ...prev, businessDayRule: e.target.value as any }))}
-                >
+                <select className="form-input" value={recurrenceRule.businessDayRule ?? 'none'} onChange={e => setRecurrenceRule(prev => ({ ...prev, businessDayRule: e.target.value as any }))}>
                   <option value="none">No adjustment</option>
                   <option value="nextBusinessDay">Move to next business day</option>
                   <option value="previousBusinessDay">Move to previous business day</option>
                 </select>
               </div>
 
-              {recurrenceRule.mode === 'finiteByCount' && (
-                <div className="form-group">
-                  <label className="form-label">Number of Occurrences *</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={recurrenceRule.count ?? ''}
-                    onChange={e => setRecurrenceRule(prev => ({ ...prev, count: parseInt(e.target.value) || undefined }))}
-                    min="1"
-                  />
+              {/* End condition */}
+              <div style={{ background: 'var(--bg-card)', borderRadius: 6, padding: '0.75rem', marginTop: '0.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: noEnd ? 0 : '0.6rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.82rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
+                    <input type="checkbox" checked={noEnd} onChange={e => {
+                      const checked = e.target.checked
+                      setNoEnd(checked)
+                      setRecurrenceRule(prev => ({ ...prev, mode: checked ? 'infinite' : finiteMode === 'byCount' ? 'finiteByCount' : 'finiteUntilDate' }))
+                    }} />
+                    No end date
+                  </label>
+                  {!noEnd && (
+                    <div style={{ display: 'flex', gap: 0, borderRadius: 4, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                      {(['byCount', 'untilDate'] as const).map(m => (
+                        <button key={m} onClick={() => {
+                          setFiniteMode(m)
+                          setRecurrenceRule(prev => ({ ...prev, mode: m === 'byCount' ? 'finiteByCount' : 'finiteUntilDate' }))
+                        }}
+                          style={{ padding: '0.2rem 0.65rem', border: 'none', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600,
+                            background: finiteMode === m ? 'var(--color-primary, #6366f1)' : 'var(--bg-base)',
+                            color: finiteMode === m ? '#fff' : 'var(--text-muted)' }}>
+                          {m === 'byCount' ? 'After count' : 'Until date'}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-
-              {recurrenceRule.mode === 'finiteUntilDate' && (
-                <div className="form-group">
-                  <label className="form-label">End Date *</label>
-                  <input
-                    type="date"
-                    className="form-input"
-                    value={recurrenceRule.untilDate ?? ''}
-                    onChange={e => setRecurrenceRule(prev => ({ ...prev, untilDate: e.target.value }))}
-                  />
-                </div>
-              )}
+                {!noEnd && finiteMode === 'byCount' && (
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">Number of Occurrences *</label>
+                    <input type="number" className="form-input" value={recurrenceRule.count ?? ''} onChange={e => setRecurrenceRule(prev => ({ ...prev, count: parseInt(e.target.value) || undefined }))} min="1" />
+                  </div>
+                )}
+                {!noEnd && finiteMode === 'untilDate' && (
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">End Date *</label>
+                    <input type="date" className="form-input" value={recurrenceRule.untilDate ?? ''} onChange={e => setRecurrenceRule(prev => ({ ...prev, untilDate: e.target.value }))} />
+                  </div>
+                )}
+              </div>
             </>
           )}
 
-          {/* Preview occurrences */}
+          {/* Preview */}
           <div style={{ marginTop: '0.5rem' }}>
-            <button
-              className="btn btn-secondary"
-              style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
-              onClick={handlePreview}
-            >
+            <button className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }} onClick={handlePreview}>
               Preview Next 12 Months
             </button>
             {showPreview && (

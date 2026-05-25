@@ -240,8 +240,8 @@ export default function CashFlowTable({ result, currency }: Props) {
             {/* Income section */}
             <tr>
               <td colSpan={periods.length + 1} style={{
-                background: 'var(--income-dim)',
-                color: 'var(--income)',
+                background: 'var(--bg-card)',
+                color: 'var(--text-secondary)',
                 fontSize: '10px',
                 fontWeight: 700,
                 textTransform: 'uppercase',
@@ -293,8 +293,8 @@ export default function CashFlowTable({ result, currency }: Props) {
             {/* Expense section */}
             <tr>
               <td colSpan={periods.length + 1} style={{
-                background: 'var(--expense-dim)',
-                color: 'var(--expense)',
+                background: 'var(--bg-card)',
+                color: 'var(--text-secondary)',
                 fontSize: '10px',
                 fontWeight: 700,
                 textTransform: 'uppercase',

@@ -323,11 +323,13 @@ export function AccountAssetForm({ accountId, accountName, mode, existing, onClo
   function handleSave() {
     const errs: string[] = []
     if (!name.trim()) errs.push('Name is required.')
-    if (isNaN(parseFloat(value))) errs.push('Value must be a number.')
+    if (mode === 'add' && isNaN(parseFloat(value))) errs.push('Value must be a number.')
     if (errs.length > 0) { setErrors(errs); return }
 
     const data = {
-      name: name.trim(), currentValue: parseFloat(value), currency, liquidity,
+      name: name.trim(),
+      ...(mode === 'add' ? { currentValue: parseFloat(value) } : {}),
+      currency, liquidity,
       notes: notes || undefined,
       liquidationRule: buildLiquidationRule(liqFee),
       fees: liqFee.fees.length > 0 ? liqFee.fees : undefined,
@@ -355,10 +357,12 @@ export function AccountAssetForm({ accountId, accountName, mode, existing, onClo
             <label className="form-label">Asset Name *</label>
             <input className="form-input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Vanguard Total Market" />
           </div>
-          <div className="form-group">
-            <label className="form-label">Current Value *</label>
-            <input type="number" className="form-input" value={value} onChange={e => setValue(e.target.value)} step="0.01" />
-          </div>
+          {mode === 'add' && (
+            <div className="form-group">
+              <label className="form-label">Current Value *</label>
+              <input type="number" className="form-input" value={value} onChange={e => setValue(e.target.value)} step="0.01" />
+            </div>
+          )}
           <div className="form-group">
             <label className="form-label">Currency</label>
             <input className="form-input" value={currency} onChange={e => setCurrency(e.target.value.toUpperCase())} maxLength={3} />

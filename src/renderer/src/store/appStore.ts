@@ -21,7 +21,9 @@ import type {
   AppPage,
   RecentFile,
   SaveStatus,
-  LiquidityType
+  LiquidityType,
+  AssetValueEntry,
+  Category
 } from '../shared/types'
 
 import { calculateCashFlow, defaultDateRange } from '../shared/engine/calculator'
@@ -29,6 +31,17 @@ import { validateFile } from '../shared/engine/validator'
 import { toISODate } from '../shared/engine/recurrence'
 
 // ─── Default Values ───────────────────────────────────────────
+
+const DEFAULT_INCOME_CATEGORIES = ['Salary', 'Bonus', 'Investment', 'Rental', 'Freelance', 'Benefit', 'Transfer', 'Other']
+const DEFAULT_EXPENSE_CATEGORIES = ['Housing', 'Utilities', 'Groceries', 'Transport', 'Insurance', 'Healthcare', 'Subscriptions', 'Dining', 'Entertainment', 'Education', 'Savings', 'Debt', 'Taxes', 'Other']
+
+function defaultCategories(): Category[] {
+  const now = new Date().toISOString()
+  return [
+    ...DEFAULT_INCOME_CATEGORIES.map(name => ({ id: uuidv4(), name, type: 'income' as const, createdAt: now })),
+    ...DEFAULT_EXPENSE_CATEGORIES.map(name => ({ id: uuidv4(), name, type: 'expense' as const, createdAt: now }))
+  ]
+}
 
 function createNewFile(name: string, initialBalance: number, currency: string): CashFlowFile {
   const now = new Date().toISOString()
@@ -40,7 +53,8 @@ function createNewFile(name: string, initialBalance: number, currency: string): 
     accountBalanceUpdates: [],
     lineItems: [],
     occurrenceOverrides: [],
-    reports: []
+    reports: [],
+    categories: defaultCategories()
   }
 }
 
@@ -80,6 +94,9 @@ interface AppStore extends AppState {
   updateAccountAsset: (accountId: string, assetId: string, updates: Partial<AccountAsset>) => void
   deleteAccountAsset: (accountId: string, assetId: string) => void
   transferBetweenAssets: (accountId: string, fromAssetId: string, toAssetId: string, amount: number) => void
+  addAssetValueEntry: (accountId: string, assetId: string, entry: Omit<AssetValueEntry, 'id' | 'createdAt'>) => void
+  updateAssetValueEntry: (accountId: string, assetId: string, entryId: string, updates: Partial<Pick<AssetValueEntry, 'value' | 'effectiveAt' | 'comment'>>) => void
+  deleteAssetValueEntry: (accountId: string, assetId: string, entryId: string) => void
 
   // Account balance updates
   addAccountBalanceUpdate: (update: Omit<AccountBalanceUpdate, 'id' | 'createdAt' | 'updatedAt'>) => string
@@ -92,6 +109,12 @@ interface AppStore extends AppState {
   // Reports
   addReport: (report: Omit<ReportDefinition, 'id' | 'createdAt'>) => string
   deleteReport: (id: string) => void
+
+  // Categories
+  addCategory: (category: Omit<Category, 'id' | 'createdAt'>) => string
+  deleteCategory: (id: string) => void
+  reassignCategory: (id: string, newName: string) => void
+  deleteAllWithCategory: (id: string) => void
 
   // Settings
   updateSettings: (settings: Partial<AppSettings>) => void
@@ -163,6 +186,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
         return { ...acc, assets: [...(acc.assets ?? []), ...migratedAssets] }
       })
       delete (file as Record<string, unknown>).assets
+    }
+
+    // Seed categories if missing
+    if (!Array.isArray(file.categories) || file.categories.length === 0) {
+      file.categories = defaultCategories()
     }
 
     const scale = file.settings.defaultViewScale ?? 'month'
@@ -385,6 +413,72 @@ export const useAppStore = create<AppStore>((set, get) => ({
     autosave(get)
   },
 
+  // ── Asset Value Entries ──
+
+  addAssetValueEntry: (accountId, assetId, entryData) => {
+    const id = uuidv4(); const now = new Date().toISOString()
+    const entry: AssetValueEntry = { ...entryData, id, createdAt: now }
+    set(s => ({
+      currentFile: s.currentFile ? {
+        ...s.currentFile,
+        accounts: s.currentFile.accounts.map(a => {
+          if (a.id !== accountId) return a
+          const assets = (a.assets ?? []).map(asset => {
+            if (asset.id !== assetId) return asset
+            const history = [...(asset.valueHistory ?? []), entry]
+              .sort((x, y) => x.effectiveAt.localeCompare(y.effectiveAt))
+            return { ...asset, currentValue: history[history.length - 1].value, valueHistory: history, updatedAt: now }
+          })
+          return { ...a, assets, updatedAt: now }
+        })
+      } : null,
+      hasUnsavedChanges: true, saveStatus: 'unsaved' as SaveStatus
+    }))
+    get().recalculate(); autosave(get)
+  },
+
+  updateAssetValueEntry: (accountId, assetId, entryId, updates) => {
+    const now = new Date().toISOString()
+    set(s => ({
+      currentFile: s.currentFile ? {
+        ...s.currentFile,
+        accounts: s.currentFile.accounts.map(a => {
+          if (a.id !== accountId) return a
+          const assets = (a.assets ?? []).map(asset => {
+            if (asset.id !== assetId) return asset
+            const history = (asset.valueHistory ?? [])
+              .map(e => e.id === entryId ? { ...e, ...updates } : e)
+              .sort((x, y) => x.effectiveAt.localeCompare(y.effectiveAt))
+            return { ...asset, currentValue: history[history.length - 1]?.value ?? asset.currentValue, valueHistory: history, updatedAt: now }
+          })
+          return { ...a, assets, updatedAt: now }
+        })
+      } : null,
+      hasUnsavedChanges: true, saveStatus: 'unsaved' as SaveStatus
+    }))
+    get().recalculate(); autosave(get)
+  },
+
+  deleteAssetValueEntry: (accountId, assetId, entryId) => {
+    const now = new Date().toISOString()
+    set(s => ({
+      currentFile: s.currentFile ? {
+        ...s.currentFile,
+        accounts: s.currentFile.accounts.map(a => {
+          if (a.id !== accountId) return a
+          const assets = (a.assets ?? []).map(asset => {
+            if (asset.id !== assetId) return asset
+            const history = (asset.valueHistory ?? []).filter(e => e.id !== entryId)
+            return { ...asset, currentValue: history.length > 0 ? history[history.length - 1].value : asset.currentValue, valueHistory: history, updatedAt: now }
+          })
+          return { ...a, assets, updatedAt: now }
+        })
+      } : null,
+      hasUnsavedChanges: true, saveStatus: 'unsaved' as SaveStatus
+    }))
+    get().recalculate(); autosave(get)
+  },
+
   // ── Account Balance Updates ──
 
   addAccountBalanceUpdate: (updateData) => {
@@ -465,6 +559,57 @@ export const useAppStore = create<AppStore>((set, get) => ({
   deleteReport: (id) => {
     set(s => ({ currentFile: s.currentFile ? { ...s.currentFile, reports: s.currentFile.reports.filter(r => r.id !== id) } : null,
       hasUnsavedChanges: true, saveStatus: 'unsaved' as SaveStatus }))
+  },
+
+  // ── Categories ──
+
+  addCategory: (catData) => {
+    const id = uuidv4(); const now = new Date().toISOString()
+    const cat: Category = { ...catData, id, createdAt: now }
+    set(s => ({
+      currentFile: s.currentFile ? { ...s.currentFile, categories: [...(s.currentFile.categories ?? []), cat] } : null,
+      hasUnsavedChanges: true, saveStatus: 'unsaved' as SaveStatus
+    }))
+    autosave(get)
+    return id
+  },
+
+  deleteCategory: (id) => {
+    set(s => ({
+      currentFile: s.currentFile ? { ...s.currentFile, categories: (s.currentFile.categories ?? []).filter(c => c.id !== id) } : null,
+      hasUnsavedChanges: true, saveStatus: 'unsaved' as SaveStatus
+    }))
+    autosave(get)
+  },
+
+  reassignCategory: (id, newName) => {
+    const { currentFile } = get(); if (!currentFile) return
+    const cat = (currentFile.categories ?? []).find(c => c.id === id)
+    if (!cat) return
+    set(s => ({
+      currentFile: s.currentFile ? {
+        ...s.currentFile,
+        lineItems: s.currentFile.lineItems.map(li => li.category === cat.name ? { ...li, category: newName } : li),
+        categories: (s.currentFile.categories ?? []).filter(c => c.id !== id)
+      } : null,
+      hasUnsavedChanges: true, saveStatus: 'unsaved' as SaveStatus
+    }))
+    get().recalculate(); autosave(get)
+  },
+
+  deleteAllWithCategory: (id) => {
+    const { currentFile } = get(); if (!currentFile) return
+    const cat = (currentFile.categories ?? []).find(c => c.id === id)
+    if (!cat) return
+    set(s => ({
+      currentFile: s.currentFile ? {
+        ...s.currentFile,
+        lineItems: s.currentFile.lineItems.filter(li => li.category !== cat.name),
+        categories: (s.currentFile.categories ?? []).filter(c => c.id !== id)
+      } : null,
+      hasUnsavedChanges: true, saveStatus: 'unsaved' as SaveStatus
+    }))
+    get().recalculate(); autosave(get)
   },
 
   // ── Settings ──

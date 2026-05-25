@@ -10,9 +10,16 @@ export type LiquidityType = 'liquid' | 'tiedUp'
 export type BusinessDayRule = 'none' | 'nextBusinessDay' | 'previousBusinessDay'
 export type SpecialDayRule = 'firstBusinessDayOfMonth' | 'lastBusinessDayOfMonth' | null
 export type SaveStatus = 'saved' | 'unsaved' | 'saving' | 'failed'
-export type AppPage = 'dashboard' | 'lineItems' | 'accounts' | 'reports' | 'settings'
+export type AppPage = 'dashboard' | 'lineItems' | 'accounts' | 'categories' | 'reports' | 'settings'
 
 // ─── File Root ───────────────────────────────────────────────
+
+export interface Category {
+  id: string
+  name: string
+  type: 'income' | 'expense'
+  createdAt: string
+}
 
 export interface CashFlowFile {
   schemaVersion: string
@@ -23,6 +30,7 @@ export interface CashFlowFile {
   lineItems: LineItem[]
   occurrenceOverrides: OccurrenceOverride[]
   reports: ReportDefinition[]
+  categories?: Category[]
 }
 
 export interface FileMetadata {
@@ -44,6 +52,14 @@ export interface AppSettings {
 // ─── Accounts ─────────────────────────────────────────────────
 // Assets are now sub-items embedded within each Account.
 
+export interface AssetValueEntry {
+  id: string
+  value: number
+  effectiveAt: string   // ISO 8601 datetime
+  comment?: string
+  createdAt: string
+}
+
 export interface AccountAsset {
   id: string
   name: string
@@ -54,6 +70,7 @@ export interface AccountAsset {
   fees?: FeeRule[]
   taxPercentage?: number
   notes?: string
+  valueHistory?: AssetValueEntry[]
   createdAt: string
   updatedAt: string
 }
