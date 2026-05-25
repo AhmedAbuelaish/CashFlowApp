@@ -6,6 +6,7 @@ interface Props {
   accounts: Account[]
   periods: PeriodSummary[]
   currency: string
+  todayPeriodKey?: string | null
 }
 
 function fmt(n: number, cur = 'USD') {
@@ -48,7 +49,11 @@ const STATUS_STYLE: Record<CellStatus, React.CSSProperties> = {
   'assumed':      { color: 'var(--text-muted)',     fontStyle: 'italic' }
 }
 
-export default function AccountsTable({ accounts, periods, currency }: Props) {
+const stickyLabel: React.CSSProperties = {
+  position: 'sticky', left: 0, background: 'var(--bg-panel)', zIndex: 1
+}
+
+export default function AccountsTable({ accounts, periods, currency, todayPeriodKey }: Props) {
   const rows = useMemo(() => {
     const result: Array<{ type: 'account'; account: Account } | { type: 'asset'; account: Account; asset: AccountAsset }> = []
     for (const account of accounts) {
@@ -63,14 +68,22 @@ export default function AccountsTable({ accounts, periods, currency }: Props) {
   if (accounts.length === 0) return null
 
   return (
-    <div style={{ overflowX: 'auto' }}>
+    <div>
       <table className="data-table">
         <thead>
           <tr>
-            <th style={{ minWidth: 200, textAlign: 'left' }}>Account / Asset</th>
-            {periods.map(p => (
-              <th key={p.periodKey} style={{ minWidth: 110 }}>{p.periodLabel}</th>
-            ))}
+            <th style={{ minWidth: 200, textAlign: 'left', ...stickyLabel }}>Account / Asset</th>
+            {periods.map(p => {
+              const isToday = p.periodKey === todayPeriodKey
+              return (
+                <th key={p.periodKey} style={{
+                  minWidth: 110,
+                  background: isToday ? 'rgba(96,165,250,0.15)' : undefined,
+                  color: isToday ? 'rgba(96,165,250,1)' : undefined,
+                  borderBottom: isToday ? '2px solid rgba(96,165,250,0.6)' : undefined
+                }}>{p.periodLabel}</th>
+              )
+            })}
           </tr>
         </thead>
         <tbody>
@@ -82,7 +95,7 @@ export default function AccountsTable({ accounts, periods, currency }: Props) {
               })
               return (
                 <tr key={row.account.id} style={{ background: 'var(--bg-card)' }}>
-                  <td style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.85rem' }}>
+                  <td style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.85rem', ...stickyLabel, background: 'var(--bg-card)' }}>
                     {row.account.name}
                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: 6, fontWeight: 400, textTransform: 'capitalize' }}>{row.account.type}</span>
                   </td>
@@ -98,7 +111,7 @@ export default function AccountsTable({ accounts, periods, currency }: Props) {
             const { account, asset } = row
             return (
               <tr key={asset.id} className="row-income">
-                <td style={{ paddingLeft: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
+                <td style={{ paddingLeft: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.82rem', ...stickyLabel }}>
                   <div>{asset.name}</div>
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                     {asset.liquidity === 'liquid' ? 'Liquid' : 'Tied up'}

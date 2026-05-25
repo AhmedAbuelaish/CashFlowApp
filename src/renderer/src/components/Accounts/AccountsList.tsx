@@ -99,6 +99,15 @@ function AssetTransferForm({ account, onClose }: { account: Account; onClose: ()
 
 // ─── Asset Value Update Form ──────────────────────────────────
 
+const lbl = {
+  fontSize: '12px', fontWeight: 400, color: 'var(--text-muted)',
+  marginBottom: '4px', display: 'block'
+} as const
+
+function Req() {
+  return <span style={{ color: 'var(--color-expense)', marginLeft: 2 }}>*</span>
+}
+
 function AssetValueUpdateForm({ account, asset, existing, onClose }: {
   account: Account; asset: AccountAsset; existing?: AssetValueEntry; onClose: () => void
 }) {
@@ -106,16 +115,22 @@ function AssetValueUpdateForm({ account, asset, existing, onClose }: {
   const updateAssetValueEntry = useAppStore(s => s.updateAssetValueEntry)
 
   const nowLocal = format(new Date(), "yyyy-MM-dd'T'HH:mm")
-  const [value,       setValue]       = useState(existing ? String(existing.value) : String(asset.currentValue))
-  const [effectiveAt, setEffectiveAt] = useState(existing ? format(parseISO(existing.effectiveAt), "yyyy-MM-dd'T'HH:mm") : nowLocal)
-  const [comment,     setComment]     = useState(existing?.comment ?? '')
-  const [error,       setError]       = useState('')
+  const initDT   = existing ? format(parseISO(existing.effectiveAt), "yyyy-MM-dd'T'HH:mm") : nowLocal
+  const [value,         setValue]         = useState(existing ? String(existing.value) : String(asset.currentValue))
+  const [effectiveDate, setEffectiveDate] = useState(initDT.split('T')[0])
+  const [effectiveTime, setEffectiveTime] = useState(initDT.split('T')[1] ?? '12:00')
+  const [comment,       setComment]       = useState(existing?.comment ?? '')
+  const [error,         setError]         = useState('')
 
   function handleSave() {
     const v = parseFloat(value)
     if (isNaN(v) || v < 0) { setError('Value must be a non-negative number.'); return }
-    if (!effectiveAt) { setError('Date is required.'); return }
-    const entry = { value: v, effectiveAt: new Date(effectiveAt).toISOString(), comment: comment || undefined }
+    if (!effectiveDate) { setError('Date is required.'); return }
+    const entry = {
+      value: v,
+      effectiveAt: new Date(`${effectiveDate}T${effectiveTime}`).toISOString(),
+      comment: comment || undefined
+    }
     if (existing) {
       updateAssetValueEntry(account.id, asset.id, existing.id, entry)
     } else {
@@ -125,29 +140,45 @@ function AssetValueUpdateForm({ account, asset, existing, onClose }: {
   }
 
   return (
-    <Modal title={existing ? `Edit Entry — ${asset.name}` : `Update Value — ${asset.name}`} onClose={onClose} width={380}>
-      <div className="form-grid">
+    <Modal
+      subtitle={asset.name}
+      title={existing ? 'Edit entry' : 'Update value'}
+      onClose={onClose}
+      width={400}
+      footer={
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleSave}>{existing ? 'Save changes' : 'Add entry'}</button>
+        </div>
+      }
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
         {!existing && (
-          <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
-            Current: <strong>{fmt(asset.currentValue, asset.currency)}</strong>
+          <div style={{ padding: '0.75rem', background: 'var(--bg-base)', borderRadius: 6 }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: 2 }}>Current value</div>
+            <div style={{ fontWeight: 700, fontSize: '1.25rem', fontVariantNumeric: 'tabular-nums' }}>
+              {fmt(asset.currentValue, asset.currency)}
+            </div>
           </div>
         )}
         {error && <div style={{ color: 'var(--color-expense)', fontSize: '0.82rem' }}>{error}</div>}
-        <div className="form-row">
-          <label className="form-label">New Value *</label>
+        <div>
+          <label style={lbl}>New value <Req /></label>
           <input type="number" className="form-input" value={value} onChange={e => setValue(e.target.value)} min="0" step="0.01" autoFocus />
         </div>
-        <div className="form-row">
-          <label className="form-label">Effective Date & Time *</label>
-          <input type="datetime-local" className="form-input" value={effectiveAt} onChange={e => setEffectiveAt(e.target.value)} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+          <div>
+            <label style={lbl}>Date <Req /></label>
+            <input type="date" className="form-input" value={effectiveDate} onChange={e => setEffectiveDate(e.target.value)} />
+          </div>
+          <div>
+            <label style={lbl}>Time</label>
+            <input type="time" className="form-input" value={effectiveTime} onChange={e => setEffectiveTime(e.target.value)} />
+          </div>
         </div>
-        <div className="form-row">
-          <label className="form-label">Comment</label>
+        <div>
+          <label style={lbl}>Comment</label>
           <input className="form-input" value={comment} onChange={e => setComment(e.target.value)} placeholder="Optional note…" />
-        </div>
-        <div className="form-actions">
-          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSave}>{existing ? 'Save Changes' : 'Add Entry'}</button>
         </div>
       </div>
     </Modal>
@@ -311,7 +342,7 @@ export default function AccountsList() {
             No assets yet. Add an asset to drive this account's balance from sub-positions.
           </p>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
             {assets.map(asset => {
               const liq = asset.liquidationRule
               const liqDesc = !liq ? null
@@ -331,8 +362,8 @@ export default function AccountsList() {
               return (
                 <div key={asset.id}>
                   <div style={{
-                    display: 'flex', alignItems: 'center', gap: '0.75rem',
-                    padding: '0.55rem 0.75rem',
+                    display: 'flex', alignItems: 'center', gap: '0.6rem',
+                    padding: '0.45rem 0.75rem',
                     background: 'var(--bg-card)', borderRadius: 6,
                     border: '1px solid var(--border)'
                   }}>
@@ -342,8 +373,17 @@ export default function AccountsList() {
                       background: asset.liquidity === 'liquid' ? 'var(--color-income)' : 'var(--color-neutral, #6b7280)'
                     }} />
 
+                    {/* Name + amount + meta */}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{asset.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 600, fontSize: '0.88rem' }}>{asset.name}</span>
+                        <span style={{ fontWeight: 700, fontSize: '0.95rem', fontVariantNumeric: 'tabular-nums' }}>
+                          {fmt(asset.currentValue, asset.currency)}
+                        </span>
+                        <span className={`badge ${asset.liquidity === 'liquid' ? 'badge-income' : 'badge-neutral'}`} style={{ fontSize: '0.68rem' }}>
+                          {asset.liquidity === 'liquid' ? 'Liquid' : 'Tied up'}
+                        </span>
+                      </div>
                       <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 1 }}>Updated {lastUpdatedStr}</div>
                       {liqDesc && <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: 1 }}>{liqDesc}</div>}
                       {asset.fees && asset.fees.length > 0 && (
@@ -353,35 +393,23 @@ export default function AccountsList() {
                       )}
                     </div>
 
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: '0.95rem', fontVariantNumeric: 'tabular-nums' }}>
-                        {fmt(asset.currentValue, asset.currency)}
-                      </div>
-                      <div style={{ fontSize: '0.72rem', marginTop: 1 }}>
-                        <span className={`badge ${asset.liquidity === 'liquid' ? 'badge-income' : 'badge-neutral'}`} style={{ fontSize: '0.68rem' }}>
-                          {asset.liquidity === 'liquid' ? 'Liquid' : 'Tied up'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flexShrink: 0 }}>
-                      <button className="btn btn-xs btn-primary" style={{ fontSize: '0.72rem' }}
+                    {/* Horizontal action group */}
+                    <div style={{ display: 'flex', gap: '0.3rem', flexShrink: 0, alignItems: 'center' }}>
+                      <button className="btn btn-xs btn-primary"
                         onClick={() => setShowAssetValueUpdate({ account, asset })}>
-                        Update Value
+                        Update
                       </button>
-                      <button className="btn btn-xs btn-ghost" style={{ fontSize: '0.72rem' }} onClick={() => togglePanel(account, asset.id + ':history')}>
+                      <button className="btn btn-xs btn-ghost" onClick={() => togglePanel(account, asset.id + ':history')}>
                         History {isHistOpen ? '▲' : '▼'}
                       </button>
-                      <div style={{ display: 'flex', gap: '0.2rem' }}>
-                        <button className="btn btn-xs btn-ghost" style={{ fontSize: '0.72rem' }}
-                          onClick={() => setShowAssetForm({ accountId: account.id, accountName: account.name, mode: 'edit', existing: asset })}>
-                          Edit
-                        </button>
-                        <button className="btn btn-xs btn-danger-ghost" style={{ fontSize: '0.72rem' }}
-                          onClick={() => setDeleteConfirm({ type: 'asset', id: asset.id, extra: account.id, name: asset.name })}>
-                          Del
-                        </button>
-                      </div>
+                      <button className="btn btn-xs btn-ghost"
+                        onClick={() => setShowAssetForm({ accountId: account.id, accountName: account.name, mode: 'edit', existing: asset })}>
+                        Edit
+                      </button>
+                      <button className="btn btn-xs btn-danger-ghost"
+                        onClick={() => setDeleteConfirm({ type: 'asset', id: asset.id, extra: account.id, name: asset.name })}>
+                        Delete
+                      </button>
                     </div>
                   </div>
 
@@ -531,7 +559,8 @@ export default function AccountsList() {
   if (!currentFile) return <div style={{ padding: '2rem', color: 'var(--text-muted)' }}>No file open.</div>
 
   return (
-    <div style={{ padding: '1.5rem', height: '100%', overflow: 'auto' }}>
+    <div style={{ height: '100%', overflow: 'auto' }}>
+    <div style={{ padding: '1.5rem', maxWidth: 1000, margin: '0 auto' }}>
       {/* Summary */}
       <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1.5rem' }}>
         {[
@@ -566,6 +595,7 @@ export default function AccountsList() {
       {accounts.length === 0
         ? <div className="empty-state">No accounts yet.</div>
         : accounts.map(renderAccount)}
+    </div>
 
       {/* Modals */}
       {showAccountForm && <AccountForm mode={showAccountForm.mode} existing={showAccountForm.existing} onClose={() => setShowAccountForm(null)} />}

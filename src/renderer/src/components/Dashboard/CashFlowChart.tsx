@@ -20,6 +20,8 @@ import type {
   PeriodSummary
 } from '../../shared/types'
 
+const TODAY_ISO = format(new Date(), 'yyyy-MM-dd')
+
 interface Props {
   result: CalculationResult
   cumulativeMode: CumulativeChartMode
@@ -171,10 +173,33 @@ const CustomTooltip = ({ active, payload, label, currency }: any) => {
   )
 }
 
+// ─── Custom XAxis tick that highlights today's label ──────────
+
+function makeTodayLabel(periods: PeriodSummary[]): string | null {
+  return periods.find(p => p.periodStart <= TODAY_ISO && TODAY_ISO <= p.periodEnd)?.periodLabel ?? null
+}
+
+function CustomTick({ x, y, payload, todayLabel }: any) {
+  const isToday = payload.value === todayLabel
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text
+        textAnchor="middle"
+        fill={isToday ? 'rgba(96,165,250,1)' : 'var(--text-muted)'}
+        fontWeight={isToday ? 700 : 400}
+        fontSize={10}
+        dy={12}
+      >
+        {payload.value}
+      </text>
+    </g>
+  )
+}
+
 // ─── Chart component ──────────────────────────────────────────
 
 export default function CashFlowChart({ result, cumulativeMode, currency, accounts }: Props) {
-  const todayISO = format(new Date(), 'yyyy-MM-dd')
+  const todayISO = TODAY_ISO
 
   const chartData = useMemo(() =>
     result.periods.map(p => ({
@@ -188,9 +213,10 @@ export default function CashFlowChart({ result, cumulativeMode, currency, accoun
     [result.periods]
   )
 
+  const todayLabel = useMemo(() => makeTodayLabel(result.periods), [result.periods])
+
   const zones = useMemo(
     () => computeZones(result.periods, accounts, todayISO),
-    // todayISO is stable within a day; recompute when periods or accounts change
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [result.periods, accounts]
   )
@@ -216,10 +242,11 @@ export default function CashFlowChart({ result, cumulativeMode, currency, accoun
   const xAxis = (
     <XAxis
       dataKey="period"
-      tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
+      tick={(props: any) => <CustomTick {...props} todayLabel={todayLabel} />}
       axisLine={{ stroke: 'var(--border)' }}
       tickLine={{ stroke: 'var(--border)' }}
-      interval="preserveStartEnd"
+      interval={0}
+      height={28}
     />
   )
 
