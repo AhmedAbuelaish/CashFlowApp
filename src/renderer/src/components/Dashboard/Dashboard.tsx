@@ -153,6 +153,7 @@ export default function Dashboard() {
                   result={calculationResult}
                   cumulativeMode={cumulativeChartMode}
                   currency={currency}
+                  accounts={currentFile?.accounts ?? []}
                 />
               ) : (
                 <div className="empty-state" style={{ height: '100%' }}>
