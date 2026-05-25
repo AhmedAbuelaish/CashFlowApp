@@ -287,17 +287,27 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   addAccount: (accountData) => {
     const id = uuidv4(); const now = new Date().toISOString()
-    const account: Account = { ...accountData, id, createdAt: now, updatedAt: now }
-    // Auto-create an initial balance update record so it appears in history
-    const initialUpdate: AccountBalanceUpdate = {
-      id: uuidv4(), accountId: id, effectiveAt: now,
-      balance: accountData.balance, liquidity: accountData.liquidity,
-      isInitialSetup: true, comment: 'Initial setup balance',
-      createdAt: now, updatedAt: now
+
+    // Auto-create a primary asset from the account's starting balance and rules.
+    // The engine reads balance from sub-assets when present, so the account is
+    // immediately asset-backed and inherits all liquidation/fee/tax settings.
+    const primaryAsset: AccountAsset = {
+      id: uuidv4(),
+      name: accountData.name,
+      currentValue: accountData.balance,
+      currency: accountData.currency,
+      liquidity: accountData.liquidity,
+      liquidationRule: accountData.liquidationRule,
+      fees: accountData.fees,
+      taxPercentage: accountData.taxPercentage,
+      createdAt: now,
+      updatedAt: now
     }
+
+    const account: Account = { ...accountData, id, assets: [primaryAsset], createdAt: now, updatedAt: now }
     set(s => ({ currentFile: s.currentFile ? { ...s.currentFile,
       accounts: [...s.currentFile.accounts, account],
-      accountBalanceUpdates: [...(s.currentFile.accountBalanceUpdates ?? []), initialUpdate] } : null,
+      accountBalanceUpdates: s.currentFile.accountBalanceUpdates ?? [] } : null,
       hasUnsavedChanges: true, saveStatus: 'unsaved' as SaveStatus }))
     autosave(get)
     return id
