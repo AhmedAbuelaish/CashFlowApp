@@ -121,7 +121,8 @@ export function calculateCashFlow(
     file.lineItems,
     initialBalance,
     balanceUpdates,
-    allAccounts
+    allAccounts,
+    rangeStart
   )
 
   // 10. Flag past projected income
@@ -512,14 +513,24 @@ function computePeriodSummaries(
   lineItems: LineItem[],
   initialBalance: number,
   balanceUpdates: AccountBalanceUpdate[],
-  allAccounts: AccountMap
+  allAccounts: AccountMap,
+  rangeStart: Date
 ): PeriodSummary[] {
   let cumulativeSurplus = 0
-  // Determine the opening liquid balance from the earliest effective date
-  // across all accounts.  If no updates precede the first period, fall back
-  // to the file-level initialLiquidBalance.
+  // Determine the opening liquid balance from account balances.
+  // Falls back to fileMetadata.initialLiquidBalance when no accounts are defined.
   let beginningBalance = initialBalance
   let beginningIlliquid = sumSetupIlliquid(allAccounts)
+  // lastSyncDate tracks which AccountBalanceUpdate was most recently applied so
+  // we only override the running balance when a *new* update arrives (sync point).
+  let lastSyncDate: string | null = null
+
+  if (allAccounts.size > 0) {
+    const initial = getEffectiveBalances(allAccounts, balanceUpdates, rangeStart)
+    beginningBalance = initial.liquid
+    beginningIlliquid = initial.illiquid
+    lastSyncDate = initial.latestUpdateDate
+  }
 
   const summaries: PeriodSummary[] = []
 
@@ -527,17 +538,18 @@ function computePeriodSummaries(
     const periodRequired = occurrencesInPeriod(required, period.start, period.end)
     const periodOptional = occurrencesInPeriod(optional, period.start, period.end)
 
-    // Determine beginning balance from balance history if updates exist
-    // for this period's start time.
-    const { liquid: historyLiquid, illiquid: historyIlliquid, trace } =
+    // Check for a sync point: a new AccountBalanceUpdate has become applicable
+    // since the previous period.  When found, override the running balance with
+    // the user-defined total; otherwise carry forward from the previous ending balance.
+    const { liquid, illiquid, trace, latestUpdateDate } =
       getEffectiveBalances(allAccounts, balanceUpdates, period.start)
 
-    // Always use the account-derived balance when accounts are defined.
-    // This ensures that asset sums (and explicit balance updates) drive the
-    // beginning balance for every period, superseding fileMetadata.initialLiquidBalance.
-    if (allAccounts.size > 0) {
-      beginningBalance = historyLiquid
-      beginningIlliquid = historyIlliquid
+    let isSyncPoint = false
+    if (allAccounts.size > 0 && latestUpdateDate !== lastSyncDate) {
+      beginningBalance = liquid
+      beginningIlliquid = illiquid
+      lastSyncDate = latestUpdateDate
+      isSyncPoint = true
     }
 
     // Pass 1: required only
@@ -586,14 +598,12 @@ function computePeriodSummaries(
       hasConfirmed: allIncluded.some(o => o.confirmationStatus === 'confirmed'),
       optionalExpensesIncluded: includedOptional,
       optionalExpensesExcluded: excludedOptional,
-      beginningBalanceTrace: trace
+      beginningBalanceTrace: trace,
+      isSyncPoint: isSyncPoint || undefined
     })
 
     cumulativeSurplus = newCumulative
-    // Carry forward: only update the running balance when history didn't
-    // override it at the start of this period — endingBalance is always
-    // the previous period's ending balance used as next period's beginning.
-    beginningBalance = endingBalance
+    beginningBalance = endingBalance  // always carry forward to the next period
   }
 
   return summaries
@@ -644,17 +654,20 @@ function sumSetupIlliquid(allAccounts: AccountMap): number {
 /**
  * For each account, find the most recent AccountBalanceUpdate whose effectiveAt
  * is <= periodStart.  If none exists, use the account's setup balance.
- * Returns separate liquid and illiquid totals plus a trace array.
+ * Returns separate liquid and illiquid totals, a trace array, and the latest
+ * effectiveAt date seen across all accounts (null when all fell back to setup).
+ * The latestUpdateDate is used by computePeriodSummaries to detect sync points.
  */
 function getEffectiveBalances(
   allAccounts: AccountMap,
   balanceUpdates: AccountBalanceUpdate[],
   periodStart: Date
-): { liquid: number; illiquid: number; trace: BalanceTraceRecord[] } {
+): { liquid: number; illiquid: number; trace: BalanceTraceRecord[]; latestUpdateDate: string | null } {
   const periodStartISO = periodStart.toISOString()
   let liquid = 0
   let illiquid = 0
   const trace: BalanceTraceRecord[] = []
+  let latestUpdateDate: string | null = null
 
   for (const account of allAccounts.values()) {
     // For asset-backed accounts the initial auto-created update had balance=0
@@ -682,6 +695,9 @@ function getEffectiveBalances(
         effectiveAt: latest.effectiveAt,
         fallbackToSetup: false
       })
+      if (!latestUpdateDate || latest.effectiveAt > latestUpdateDate) {
+        latestUpdateDate = latest.effectiveAt
+      }
     } else {
       // Fall back to setup balance
       if (account.liquidity === 'liquid') {
@@ -699,7 +715,7 @@ function getEffectiveBalances(
     }
   }
 
-  return { liquid, illiquid, trace }
+  return { liquid, illiquid, trace, latestUpdateDate }
 }
 
 /**

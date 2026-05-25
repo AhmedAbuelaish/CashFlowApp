@@ -9,7 +9,9 @@ import type {
   LineItem,
   RecurrenceRule,
   AmountRule,
-  OccurrenceOverride
+  OccurrenceOverride,
+  Account,
+  AccountBalanceUpdate
 } from '../src/renderer/src/shared/types'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -575,5 +577,136 @@ describe('series split isolation', () => {
     expect(jan.cashFlowIn).toBe(3000) // Old rate
     expect(jun.cashFlowIn).toBe(3500) // New rate
     expect(dec.cashFlowIn).toBe(3500) // Still new rate
+  })
+})
+
+// ── Sync-Point Balance Anchoring ──────────────────────────────
+
+function liquidAccount(name: string, balance: number, setupDate: string): {
+  account: Account
+  update: AccountBalanceUpdate
+} {
+  const now = new Date().toISOString()
+  const accountId = uuidv4()
+  const account: Account = {
+    id: accountId,
+    name,
+    type: 'checking',
+    balance,
+    currency: 'USD',
+    liquidity: 'liquid',
+    createdAt: now,
+    updatedAt: now
+  }
+  const update: AccountBalanceUpdate = {
+    id: uuidv4(),
+    accountId,
+    effectiveAt: setupDate + 'T00:00:00.000Z',
+    balance,
+    liquidity: 'liquid',
+    isInitialSetup: true,
+    createdAt: now,
+    updatedAt: now
+  }
+  return { account, update }
+}
+
+describe('sync point balance anchoring', () => {
+  it('carries forward the running liquid balance when no new account updates arrive', () => {
+    const { account, update } = liquidAccount('Checking', 1000, '2025-01-01')
+    const file = makeFile({
+      accounts: [account],
+      accountBalanceUpdates: [update],
+      lineItems: [
+        incomeItem('Salary', 500, monthlyRule('2025-01-15'))
+      ]
+    })
+    const result = calculateCashFlow(file, CALC_OPT)
+
+    // Each period's beginning should equal the previous period's ending
+    for (let i = 1; i < result.periods.length; i++) {
+      expect(result.periods[i].beginningLiquidBalance)
+        .toBe(result.periods[i - 1].endingLiquidBalance)
+    }
+
+    // January should start from the account balance
+    const jan = result.periods.find(p => p.periodKey === '2025-01')!
+    expect(jan.beginningLiquidBalance).toBe(1000)
+    expect(jan.endingLiquidBalance).toBe(1500)
+
+    // February should carry forward, not reset
+    const feb = result.periods.find(p => p.periodKey === '2025-02')!
+    expect(feb.beginningLiquidBalance).toBe(1500)
+  })
+
+  it('applies a sync point when a new balance update arrives and carries forward from there', () => {
+    const { account, update } = liquidAccount('Checking', 1000, '2025-01-01')
+
+    // User records actual balance on March 15: $2500 (higher than projected)
+    const now = new Date().toISOString()
+    const syncUpdate: AccountBalanceUpdate = {
+      id: uuidv4(),
+      accountId: account.id,
+      effectiveAt: '2025-03-15T00:00:00.000Z',
+      balance: 2500,
+      liquidity: 'liquid',
+      reconciliationReason: 'manualAdjustment',
+      createdAt: now,
+      updatedAt: now
+    }
+
+    const file = makeFile({
+      accounts: [account],
+      accountBalanceUpdates: [update, syncUpdate],
+      lineItems: [
+        incomeItem('Salary', 500, monthlyRule('2025-01-15'))
+      ]
+    })
+    const result = calculateCashFlow(file, CALC_OPT)
+
+    // Jan and Feb should carry forward normally (no new update)
+    const jan = result.periods.find(p => p.periodKey === '2025-01')!
+    const feb = result.periods.find(p => p.periodKey === '2025-02')!
+    expect(jan.beginningLiquidBalance).toBe(1000)
+    expect(feb.beginningLiquidBalance).toBe(1500)
+
+    // April is the first period where the March 15 update is fully applicable
+    // (its effectiveAt <= April 1), so April becomes the sync point
+    const apr = result.periods.find(p => p.periodKey === '2025-04')!
+    expect(apr.beginningLiquidBalance).toBe(2500)
+
+    // May carries forward from April's ending (not resets to 2500 or 1000)
+    const may = result.periods.find(p => p.periodKey === '2025-05')!
+    expect(may.beginningLiquidBalance).toBe(apr.endingLiquidBalance)
+  })
+
+  it('marks the sync period with isSyncPoint and leaves non-sync periods without it', () => {
+    const { account, update } = liquidAccount('Checking', 1000, '2025-01-01')
+
+    const now = new Date().toISOString()
+    const syncUpdate: AccountBalanceUpdate = {
+      id: uuidv4(),
+      accountId: account.id,
+      effectiveAt: '2025-03-15T00:00:00.000Z',
+      balance: 2500,
+      liquidity: 'liquid',
+      createdAt: now,
+      updatedAt: now
+    }
+
+    const file = makeFile({
+      accounts: [account],
+      accountBalanceUpdates: [update, syncUpdate],
+      lineItems: []
+    })
+    const result = calculateCashFlow(file, CALC_OPT)
+
+    const apr = result.periods.find(p => p.periodKey === '2025-04')!
+    expect(apr.isSyncPoint).toBe(true)
+
+    const jan = result.periods.find(p => p.periodKey === '2025-01')!
+    const feb = result.periods.find(p => p.periodKey === '2025-02')!
+    expect(jan.isSyncPoint).toBeFalsy()
+    expect(feb.isSyncPoint).toBeFalsy()
   })
 })
