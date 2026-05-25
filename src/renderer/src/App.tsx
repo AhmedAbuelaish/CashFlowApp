@@ -5,6 +5,7 @@ import Layout from './components/shared/Layout'
 import Dashboard from './components/Dashboard/Dashboard'
 import LineItemsList from './components/LineItems/LineItemsList'
 import AccountsList from './components/Accounts/AccountsList'
+import Categories from './components/Categories/Categories'
 import Reports from './components/Reports/Reports'
 import Settings from './components/Settings/Settings'
 
@@ -68,6 +69,7 @@ export default function App() {
       {currentPage === 'dashboard'  && <Dashboard />}
       {currentPage === 'lineItems'  && <LineItemsList />}
       {currentPage === 'accounts'   && <AccountsList />}
+      {currentPage === 'categories' && <Categories />}
       {currentPage === 'reports'    && <Reports />}
       {currentPage === 'settings'   && <Settings />}
     </Layout>

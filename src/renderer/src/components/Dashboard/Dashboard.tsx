@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useAppStore } from '../../store/appStore'
 import CashFlowChart from './CashFlowChart'
 import CashFlowTable from './CashFlowTable'
+import AccountsTable from './AccountsTable'
 import PastProjectedReview from './PastProjectedReview'
 import LineItemForm from '../LineItems/LineItemForm'
 import type { ViewScale, CumulativeChartMode } from '../../shared/types'
@@ -188,6 +189,21 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
+            {/* Accounts section */}
+            {currentFile && (currentFile.accounts ?? []).length > 0 && calculationResult && (
+              <div className="panel" style={{ marginTop: '1rem' }}>
+                <div className="panel-header">
+                  <span className="panel-title">Account Balances</span>
+                </div>
+                <div style={{ padding: '8px', overflow: 'auto' }}>
+                  <AccountsTable
+                    accounts={currentFile.accounts}
+                    periods={calculationResult.periods}
+                    currency={currency}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

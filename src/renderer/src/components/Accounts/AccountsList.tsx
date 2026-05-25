@@ -8,7 +8,7 @@ import { useState, useMemo } from 'react'
 import { format, parseISO } from 'date-fns'
 import { useAppStore } from '../../store/appStore'
 import type {
-  Account, AccountAsset, AccountBalanceUpdate, ReconciliationVariance
+  Account, AccountAsset, AccountBalanceUpdate, ReconciliationVariance, AssetValueEntry
 } from '../../shared/types'
 import { AccountForm, AccountAssetForm } from './AccountForm'
 import AccountBalanceUpdateForm from './AccountBalanceUpdateForm'
@@ -97,35 +97,57 @@ function AssetTransferForm({ account, onClose }: { account: Account; onClose: ()
   )
 }
 
-// ─── Quick value update modal ─────────────────────────────────
+// ─── Asset Value Update Form ──────────────────────────────────
 
-function QuickValueForm({ account, asset, onClose }: { account: Account; asset: AccountAsset; onClose: () => void }) {
-  const updateAccountAsset = useAppStore(s => s.updateAccountAsset)
-  const [value,  setValue]  = useState(String(asset.currentValue))
-  const [error,  setError]  = useState('')
+function AssetValueUpdateForm({ account, asset, existing, onClose }: {
+  account: Account; asset: AccountAsset; existing?: AssetValueEntry; onClose: () => void
+}) {
+  const addAssetValueEntry    = useAppStore(s => s.addAssetValueEntry)
+  const updateAssetValueEntry = useAppStore(s => s.updateAssetValueEntry)
+
+  const nowLocal = format(new Date(), "yyyy-MM-dd'T'HH:mm")
+  const [value,       setValue]       = useState(existing ? String(existing.value) : String(asset.currentValue))
+  const [effectiveAt, setEffectiveAt] = useState(existing ? format(parseISO(existing.effectiveAt), "yyyy-MM-dd'T'HH:mm") : nowLocal)
+  const [comment,     setComment]     = useState(existing?.comment ?? '')
+  const [error,       setError]       = useState('')
 
   function handleSave() {
     const v = parseFloat(value)
     if (isNaN(v) || v < 0) { setError('Value must be a non-negative number.'); return }
-    updateAccountAsset(account.id, asset.id, { currentValue: v })
+    if (!effectiveAt) { setError('Date is required.'); return }
+    const entry = { value: v, effectiveAt: new Date(effectiveAt).toISOString(), comment: comment || undefined }
+    if (existing) {
+      updateAssetValueEntry(account.id, asset.id, existing.id, entry)
+    } else {
+      addAssetValueEntry(account.id, asset.id, entry)
+    }
     onClose()
   }
 
   return (
-    <Modal title={`Update Value — ${asset.name}`} onClose={onClose} width={340}>
+    <Modal title={existing ? `Edit Entry — ${asset.name}` : `Update Value — ${asset.name}`} onClose={onClose} width={380}>
       <div className="form-grid">
-        <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
-          Current: <strong>{fmt(asset.currentValue, asset.currency)}</strong>
-        </div>
+        {!existing && (
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
+            Current: <strong>{fmt(asset.currentValue, asset.currency)}</strong>
+          </div>
+        )}
         {error && <div style={{ color: 'var(--color-expense)', fontSize: '0.82rem' }}>{error}</div>}
         <div className="form-row">
-          <label className="form-label">New value</label>
-          <input type="number" className="form-input" value={value}
-            onChange={e => setValue(e.target.value)} min="0" step="0.01" autoFocus />
+          <label className="form-label">New Value *</label>
+          <input type="number" className="form-input" value={value} onChange={e => setValue(e.target.value)} min="0" step="0.01" autoFocus />
+        </div>
+        <div className="form-row">
+          <label className="form-label">Effective Date & Time *</label>
+          <input type="datetime-local" className="form-input" value={effectiveAt} onChange={e => setEffectiveAt(e.target.value)} />
+        </div>
+        <div className="form-row">
+          <label className="form-label">Comment</label>
+          <input className="form-input" value={comment} onChange={e => setComment(e.target.value)} placeholder="Optional note…" />
         </div>
         <div className="form-actions">
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSave}>Update</button>
+          <button className="btn btn-primary" onClick={handleSave}>{existing ? 'Save Changes' : 'Add Entry'}</button>
         </div>
       </div>
     </Modal>
@@ -135,13 +157,14 @@ function QuickValueForm({ account, asset, onClose }: { account: Account; asset: 
 // ─── Main component ───────────────────────────────────────────
 
 export default function AccountsList() {
-  const currentFile        = useAppStore(s => s.currentFile)
-  const calcResult         = useAppStore(s => s.calculationResult)
-  const deleteAccount      = useAppStore(s => s.deleteAccount)
-  const deleteAccountAsset = useAppStore(s => s.deleteAccountAsset)
-  const addUpdate          = useAppStore(s => s.addAccountBalanceUpdate)
-  const editUpdate         = useAppStore(s => s.updateAccountBalanceUpdate)
-  const delUpdate          = useAppStore(s => s.deleteAccountBalanceUpdate)
+  const currentFile            = useAppStore(s => s.currentFile)
+  const calcResult             = useAppStore(s => s.calculationResult)
+  const deleteAccount          = useAppStore(s => s.deleteAccount)
+  const deleteAccountAsset     = useAppStore(s => s.deleteAccountAsset)
+  const deleteAssetValueEntry  = useAppStore(s => s.deleteAssetValueEntry)
+  const addUpdate              = useAppStore(s => s.addAccountBalanceUpdate)
+  const editUpdate             = useAppStore(s => s.updateAccountBalanceUpdate)
+  const delUpdate              = useAppStore(s => s.deleteAccountBalanceUpdate)
 
   const accounts = currentFile?.accounts ?? []
   const allUpdates = useMemo(
@@ -156,21 +179,17 @@ export default function AccountsList() {
   // Absent keys use the default: assets open when the account has assets, history closed.
   const [panelOverrides, setPanelOverrides] = useState<Map<string, boolean>>(new Map())
 
-  function isPanelOpen(account: Account, section: 'assets' | 'history'): boolean {
+  function isPanelOpen(account: Account, section: string): boolean {
     const key = `${account.id}:${section}`
     const override = panelOverrides.get(key)
     if (override !== undefined) return override
     return section === 'assets' && (account.assets ?? []).length > 0
   }
 
-  function togglePanel(account: Account, section: 'assets' | 'history') {
+  function togglePanel(account: Account, section: string) {
     const key = `${account.id}:${section}`
     const next = !isPanelOpen(account, section)
-    setPanelOverrides(prev => {
-      const m = new Map(prev)
-      m.set(key, next)
-      return m
-    })
+    setPanelOverrides(prev => { const m = new Map(prev); m.set(key, next); return m })
   }
 
   // ── Modal state ───────────────────────────────────────────
@@ -178,13 +197,13 @@ export default function AccountsList() {
   type AccountModal = { mode: 'add' | 'edit'; existing?: Account }
   type AssetModal   = { accountId: string; accountName: string; mode: 'add' | 'edit'; existing?: AccountAsset }
 
-  const [showAccountForm, setShowAccountForm] = useState<AccountModal | null>(null)
-  const [showAssetForm,   setShowAssetForm]   = useState<AssetModal | null>(null)
-  const [showQuickValue,  setShowQuickValue]  = useState<{ account: Account; asset: AccountAsset } | null>(null)
-  const [showAssetXfer,   setShowAssetXfer]   = useState<Account | null>(null)
-  const [showUpdateForm,  setShowUpdateForm]  = useState<{ accountId?: string; existing?: AccountBalanceUpdate } | null>(null)
-  const [showInterXfer,   setShowInterXfer]   = useState(false)
-  const [deleteConfirm,   setDeleteConfirm]   = useState<{ type: string; id: string; extra?: string; name: string } | null>(null)
+  const [showAccountForm,       setShowAccountForm]       = useState<AccountModal | null>(null)
+  const [showAssetForm,         setShowAssetForm]         = useState<AssetModal | null>(null)
+  const [showAssetValueUpdate,  setShowAssetValueUpdate]  = useState<{ account: Account; asset: AccountAsset; existing?: AssetValueEntry } | null>(null)
+  const [showAssetXfer,         setShowAssetXfer]         = useState<Account | null>(null)
+  const [showUpdateForm,        setShowUpdateForm]        = useState<{ accountId?: string; existing?: AccountBalanceUpdate } | null>(null)
+  const [showInterXfer,         setShowInterXfer]         = useState(false)
+  const [deleteConfirm,         setDeleteConfirm]         = useState<{ type: string; id: string; extra?: string; name: string } | null>(null)
 
   // ── Summary ───────────────────────────────────────────────
 
@@ -199,6 +218,7 @@ export default function AccountsList() {
     if (type === 'account') deleteAccount(id)
     if (type === 'asset' && extra) deleteAccountAsset(extra, id)
     if (type === 'update') delUpdate(id)
+    if (type === 'assetEntry' && extra) { const [accId, assetId] = extra.split(':'); deleteAssetValueEntry(accId, assetId, id) }
     setDeleteConfirm(null)
   }
 
@@ -301,56 +321,104 @@ export default function AccountsList() {
                 ? `Available every ${liq.periodicInterval} ${liq.periodicUnit}(s)`
                 : 'Specific dates'
 
+              const isHistOpen = isPanelOpen(account, asset.id + ':history')
+              const sortedHistory = [...(asset.valueHistory ?? [])].sort((a, b) => b.effectiveAt.localeCompare(a.effectiveAt))
+              const lastEntry = sortedHistory[0]
+              const lastUpdatedStr = lastEntry
+                ? format(parseISO(lastEntry.effectiveAt), 'MMM d, yyyy')
+                : format(parseISO(asset.updatedAt), 'MMM d, yyyy')
+
               return (
-                <div key={asset.id} style={{
-                  display: 'flex', alignItems: 'center', gap: '0.75rem',
-                  padding: '0.55rem 0.75rem',
-                  background: 'var(--bg-card)', borderRadius: 6,
-                  border: '1px solid var(--border)'
-                }}>
-                  {/* Colour stripe */}
+                <div key={asset.id}>
                   <div style={{
-                    width: 3, alignSelf: 'stretch', borderRadius: 2, flexShrink: 0,
-                    background: asset.liquidity === 'liquid' ? 'var(--color-income)' : 'var(--color-neutral, #6b7280)'
-                  }} />
+                    display: 'flex', alignItems: 'center', gap: '0.75rem',
+                    padding: '0.55rem 0.75rem',
+                    background: 'var(--bg-card)', borderRadius: 6,
+                    border: '1px solid var(--border)'
+                  }}>
+                    {/* Colour stripe */}
+                    <div style={{
+                      width: 3, alignSelf: 'stretch', borderRadius: 2, flexShrink: 0,
+                      background: asset.liquidity === 'liquid' ? 'var(--color-income)' : 'var(--color-neutral, #6b7280)'
+                    }} />
 
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{asset.name}</div>
-                    {liqDesc && <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: 1 }}>{liqDesc}</div>}
-                    {asset.fees && asset.fees.length > 0 && (
-                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                        Fees: {asset.fees.map(f => f.mode === 'fixed' ? `$${f.amount}` : `${f.percentage}%`).join(', ')}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{asset.name}</div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 1 }}>Updated {lastUpdatedStr}</div>
+                      {liqDesc && <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: 1 }}>{liqDesc}</div>}
+                      {asset.fees && asset.fees.length > 0 && (
+                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                          Fees: {asset.fees.map(f => f.mode === 'fixed' ? `$${f.amount}` : `${f.percentage}%`).join(', ')}
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.95rem', fontVariantNumeric: 'tabular-nums' }}>
+                        {fmt(asset.currentValue, asset.currency)}
                       </div>
-                    )}
+                      <div style={{ fontSize: '0.72rem', marginTop: 1 }}>
+                        <span className={`badge ${asset.liquidity === 'liquid' ? 'badge-income' : 'badge-neutral'}`} style={{ fontSize: '0.68rem' }}>
+                          {asset.liquidity === 'liquid' ? 'Liquid' : 'Tied up'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flexShrink: 0 }}>
+                      <button className="btn btn-xs btn-primary" style={{ fontSize: '0.72rem' }}
+                        onClick={() => setShowAssetValueUpdate({ account, asset })}>
+                        Update Value
+                      </button>
+                      <button className="btn btn-xs btn-ghost" style={{ fontSize: '0.72rem' }} onClick={() => togglePanel(account, asset.id + ':history')}>
+                        History {isHistOpen ? '▲' : '▼'}
+                      </button>
+                      <div style={{ display: 'flex', gap: '0.2rem' }}>
+                        <button className="btn btn-xs btn-ghost" style={{ fontSize: '0.72rem' }}
+                          onClick={() => setShowAssetForm({ accountId: account.id, accountName: account.name, mode: 'edit', existing: asset })}>
+                          Edit
+                        </button>
+                        <button className="btn btn-xs btn-danger-ghost" style={{ fontSize: '0.72rem' }}
+                          onClick={() => setDeleteConfirm({ type: 'asset', id: asset.id, extra: account.id, name: asset.name })}>
+                          Del
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.95rem', fontVariantNumeric: 'tabular-nums' }}>
-                      {fmt(asset.currentValue, asset.currency)}
+                  {isHistOpen && (
+                    <div style={{ margin: '0 0 0.4rem 0', padding: '0.6rem 0.75rem', background: 'var(--bg-base)', borderRadius: 6, border: '1px solid var(--border)' }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.5rem' }}>Value History</div>
+                      {(asset.valueHistory ?? []).length === 0 ? (
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', margin: 0 }}>No history yet. Use "Update Value" to record a change.</p>
+                      ) : (
+                        <table className="data-table" style={{ fontSize: '0.75rem' }}>
+                          <thead><tr><th>Date</th><th style={{ textAlign: 'right' }}>Value</th><th style={{ textAlign: 'right' }}>Δ</th><th>Comment</th><th>Actions</th></tr></thead>
+                          <tbody>
+                            {[...(asset.valueHistory ?? [])].sort((a, b) => b.effectiveAt.localeCompare(a.effectiveAt)).map((entry, i, arr) => {
+                              const prev = arr[i + 1]
+                              const delta = prev ? entry.value - prev.value : null
+                              return (
+                                <tr key={entry.id}>
+                                  <td style={{ whiteSpace: 'nowrap' }}>{fmtDT(entry.effectiveAt)}</td>
+                                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt(entry.value, asset.currency)}</td>
+                                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: delta == null ? undefined : delta > 0 ? 'var(--color-income)' : 'var(--color-expense)' }}>
+                                    {delta == null ? '—' : (delta >= 0 ? '+' : '') + fmt(delta, asset.currency)}
+                                  </td>
+                                  <td style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>{entry.comment ?? '—'}</td>
+                                  <td>
+                                    <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                      <button className="btn btn-xs btn-ghost" onClick={() => setShowAssetValueUpdate({ account, asset, existing: entry })}>Edit</button>
+                                      <button className="btn btn-xs btn-danger-ghost" onClick={() => setDeleteConfirm({ type: 'assetEntry', id: entry.id, extra: account.id + ':' + asset.id, name: fmtDT(entry.effectiveAt) })}>Del</button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      )}
                     </div>
-                    <div style={{ fontSize: '0.72rem', marginTop: 1 }}>
-                      <span className={`badge ${asset.liquidity === 'liquid' ? 'badge-income' : 'badge-neutral'}`} style={{ fontSize: '0.68rem' }}>
-                        {asset.liquidity === 'liquid' ? 'Liquid' : 'Tied up'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flexShrink: 0 }}>
-                    <button className="btn btn-xs btn-primary" style={{ fontSize: '0.72rem' }}
-                      onClick={() => setShowQuickValue({ account, asset })}>
-                      Update Value
-                    </button>
-                    <div style={{ display: 'flex', gap: '0.2rem' }}>
-                      <button className="btn btn-xs btn-ghost" style={{ fontSize: '0.72rem' }}
-                        onClick={() => setShowAssetForm({ accountId: account.id, accountName: account.name, mode: 'edit', existing: asset })}>
-                        Edit
-                      </button>
-                      <button className="btn btn-xs btn-danger-ghost" style={{ fontSize: '0.72rem' }}
-                        onClick={() => setDeleteConfirm({ type: 'asset', id: asset.id, extra: account.id, name: asset.name })}>
-                        Del
-                      </button>
-                    </div>
-                  </div>
+                  )}
                 </div>
               )
             })}
@@ -502,7 +570,14 @@ export default function AccountsList() {
       {/* Modals */}
       {showAccountForm && <AccountForm mode={showAccountForm.mode} existing={showAccountForm.existing} onClose={() => setShowAccountForm(null)} />}
       {showAssetForm && <AccountAssetForm accountId={showAssetForm.accountId} accountName={showAssetForm.accountName} mode={showAssetForm.mode} existing={showAssetForm.existing} onClose={() => setShowAssetForm(null)} />}
-      {showQuickValue && <QuickValueForm account={showQuickValue.account} asset={showQuickValue.asset} onClose={() => setShowQuickValue(null)} />}
+      {showAssetValueUpdate && (
+        <AssetValueUpdateForm
+          account={showAssetValueUpdate.account}
+          asset={showAssetValueUpdate.asset}
+          existing={showAssetValueUpdate.existing}
+          onClose={() => setShowAssetValueUpdate(null)}
+        />
+      )}
       {showAssetXfer && <AssetTransferForm account={showAssetXfer} onClose={() => setShowAssetXfer(null)} />}
       {showUpdateForm !== null && (
         <AccountBalanceUpdateForm accountId={showUpdateForm.accountId} accounts={accounts}
