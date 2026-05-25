@@ -24,9 +24,9 @@ export default function Dashboard() {
   const pastProjectedCount = calculationResult?.pastProjectedIncomeReview.length ?? 0
   const warnings = calculationResult?.warnings ?? []
 
-  const SCALES: ViewScale[] = ['month', 'quarter', 'halfYear', 'year']
+  const SCALES: ViewScale[] = ['day', 'week', 'month', 'quarter', 'halfYear', 'year']
   const SCALE_LABELS: Record<ViewScale, string> = {
-    month: 'Month', quarter: 'Quarter', halfYear: 'Half-Year', year: 'Year'
+    day: 'Day', week: 'Week', month: 'Month', quarter: 'Quarter', halfYear: 'Half-Year', year: 'Year'
   }
 
   const CHART_MODES: CumulativeChartMode[] = ['sameChart', 'separateChart', 'hidden']

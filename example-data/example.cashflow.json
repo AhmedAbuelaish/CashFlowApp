@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0.0",
   "fileMetadata": {
-    "name": "Sample Household Plan 2025–2027",
+    "name": "Sample Household Plan 2025\u20132027",
     "createdAt": "2025-01-01T00:00:00.000Z",
     "updatedAt": "2025-01-01T00:00:00.000Z",
     "lastOpenedAt": "2025-01-01T00:00:00.000Z",
@@ -46,33 +46,102 @@
       "liquidity": "tiedUp",
       "notes": "Vanguard target-date 2050 fund",
       "createdAt": "2025-01-01T00:00:00.000Z",
-      "updatedAt": "2025-01-01T00:00:00.000Z"
-    }
-  ],
-  "assets": [
-    {
-      "id": "asset-401k-001",
-      "name": "401k Balance",
-      "accountId": "acct-401k-001",
-      "currentValue": 120000,
-      "currency": "USD",
-      "liquidity": "tiedUp",
+      "updatedAt": "2025-01-01T00:00:00.000Z",
+      "assets": [
+        {
+          "id": "asset-401k-001",
+          "name": "401k Balance",
+          "currentValue": 120000,
+          "currency": "USD",
+          "liquidity": "tiedUp",
+          "liquidationRule": {
+            "mode": "fixedDelay",
+            "saleDelayDays": 3,
+            "transferDelayDays": 5,
+            "useBusinessDays": true
+          },
+          "fees": [
+            {
+              "id": "fee-401k-penalty",
+              "mode": "percentage",
+              "percentage": 10,
+              "label": "Early withdrawal penalty"
+            }
+          ],
+          "taxPercentage": 22,
+          "notes": "Early withdrawal incurs 10% penalty + 22% estimated income tax",
+          "createdAt": "2025-01-01T00:00:00.000Z",
+          "updatedAt": "2025-01-01T00:00:00.000Z"
+        }
+      ],
       "liquidationRule": {
         "mode": "fixedDelay",
-        "saleDelayDays": 3,
-        "transferDelayDays": 5,
+        "saleDelayDays": 5,
+        "transferDelayDays": 2,
         "useBusinessDays": true
       },
       "fees": [
         {
-          "id": "fee-401k-penalty",
+          "id": "fee-001",
           "mode": "percentage",
           "percentage": 10,
           "label": "Early withdrawal penalty"
         }
-      ],
-      "taxPercentage": 22,
-      "notes": "Early withdrawal incurs 10% penalty + 22% estimated income tax",
+      ]
+    }
+  ],
+  "accountBalanceUpdates": [
+    {
+      "id": "bu-001",
+      "accountId": "acc-001",
+      "effectiveAt": "2026-05-01T09:00:00.000Z",
+      "balance": 12450.0,
+      "liquidity": "liquid",
+      "comment": "Reconciled against May bank statement",
+      "reconciliationReason": "balanceCorrection",
+      "createdAt": "2026-05-01T09:05:00.000Z",
+      "updatedAt": "2026-05-01T09:05:00.000Z"
+    },
+    {
+      "id": "bu-002",
+      "accountId": "acc-002",
+      "effectiveAt": "2026-05-01T09:00:00.000Z",
+      "balance": 8750.0,
+      "liquidity": "liquid",
+      "comment": "Savings reconciliation \u2014 May",
+      "createdAt": "2026-05-01T09:05:00.000Z",
+      "updatedAt": "2026-05-01T09:05:00.000Z"
+    },
+    {
+      "id": "bu-setup-acct-checking-001",
+      "accountId": "acct-checking-001",
+      "effectiveAt": "2025-01-01T00:00:00.000Z",
+      "balance": 8500,
+      "liquidity": "liquid",
+      "isInitialSetup": true,
+      "comment": "Initial setup balance",
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "bu-setup-acct-savings-001",
+      "accountId": "acct-savings-001",
+      "effectiveAt": "2025-01-01T00:00:00.000Z",
+      "balance": 15000,
+      "liquidity": "liquid",
+      "isInitialSetup": true,
+      "comment": "Initial setup balance",
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "bu-setup-acct-401k-001",
+      "accountId": "acct-401k-001",
+      "effectiveAt": "2025-01-01T00:00:00.000Z",
+      "balance": 120000,
+      "liquidity": "tiedUp",
+      "isInitialSetup": true,
+      "comment": "Initial setup balance",
       "createdAt": "2025-01-01T00:00:00.000Z",
       "updatedAt": "2025-01-01T00:00:00.000Z"
     }
@@ -125,7 +194,7 @@
       },
       "confirmationStatus": "projected",
       "isOptional": false,
-      "seriesComment": "Q1 performance bonus. Amount is estimated — confirm when received.",
+      "seriesComment": "Q1 performance bonus. Amount is estimated \u2014 confirm when received.",
       "createdAt": "2025-01-01T00:00:00.000Z",
       "updatedAt": "2025-01-01T00:00:00.000Z"
     },
@@ -151,7 +220,7 @@
       },
       "confirmationStatus": "projected",
       "isOptional": false,
-      "seriesComment": "Commission paid semiannually — 10% of monthly net salary. Confirmed values only.",
+      "seriesComment": "Commission paid semiannually \u2014 10% of monthly net salary. Confirmed values only.",
       "createdAt": "2025-01-01T00:00:00.000Z",
       "updatedAt": "2025-01-01T00:00:00.000Z"
     },
@@ -275,7 +344,7 @@
       },
       "confirmationStatus": "confirmed",
       "isOptional": false,
-      "seriesComment": "Paid every 6 months: Jan 20 and Jul 20. This is NOT spread monthly — it appears only in the months it is due.",
+      "seriesComment": "Paid every 6 months: Jan 20 and Jul 20. This is NOT spread monthly \u2014 it appears only in the months it is due.",
       "createdAt": "2025-01-01T00:00:00.000Z",
       "updatedAt": "2025-01-01T00:00:00.000Z"
     },
@@ -300,7 +369,7 @@
       },
       "confirmationStatus": "projected",
       "isOptional": false,
-      "seriesComment": "Estimated annual out-of-pocket maximum. Actual dates vary — this is a planning estimate recorded on April 1 each year.",
+      "seriesComment": "Estimated annual out-of-pocket maximum. Actual dates vary \u2014 this is a planning estimate recorded on April 1 each year.",
       "createdAt": "2025-01-01T00:00:00.000Z",
       "updatedAt": "2025-01-01T00:00:00.000Z"
     },
@@ -370,11 +439,14 @@
       },
       "recurrenceRule": {
         "mode": "specificDates",
-        "specificDates": ["2025-07-01", "2026-07-01"]
+        "specificDates": [
+          "2025-07-01",
+          "2026-07-01"
+        ]
       },
       "confirmationStatus": "projected",
       "isOptional": false,
-      "seriesComment": "Planned vacation spending for July 2025 and July 2026. These are lump-sum occurrences, not spread monthly. This is the key planning event — ensure cumulative surplus is ≥ $3,500 before July.",
+      "seriesComment": "Planned vacation spending for July 2025 and July 2026. These are lump-sum occurrences, not spread monthly. This is the key planning event \u2014 ensure cumulative surplus is \u2265 $3,500 before July.",
       "createdAt": "2025-01-01T00:00:00.000Z",
       "updatedAt": "2025-01-01T00:00:00.000Z"
     },

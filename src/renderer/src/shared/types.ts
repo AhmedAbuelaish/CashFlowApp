@@ -4,7 +4,7 @@
 
 export type LineItemType = 'income' | 'expense'
 export type ConfirmationStatus = 'confirmed' | 'projected'
-export type ViewScale = 'month' | 'quarter' | 'halfYear' | 'year'
+export type ViewScale = 'day' | 'week' | 'month' | 'quarter' | 'halfYear' | 'year'
 export type CumulativeChartMode = 'sameChart' | 'separateChart' | 'hidden'
 export type LiquidityType = 'liquid' | 'tiedUp'
 export type BusinessDayRule = 'none' | 'nextBusinessDay' | 'previousBusinessDay'
@@ -19,7 +19,9 @@ export interface CashFlowFile {
   fileMetadata: FileMetadata
   settings: AppSettings
   accounts: Account[]
-  assets: Asset[]
+  /** @deprecated Assets are now embedded in Account.assets. Kept for migration only. */
+  assets?: LegacyAsset[]
+  accountBalanceUpdates: AccountBalanceUpdate[]
   lineItems: LineItem[]
   occurrenceOverrides: OccurrenceOverride[]
   reports: ReportDefinition[]
@@ -41,21 +43,44 @@ export interface AppSettings {
   currency: string
 }
 
-// ─── Accounts & Assets ───────────────────────────────────────
+// ─── Accounts ─────────────────────────────────────────────────
+// Assets are now sub-items embedded within each Account.
 
-export interface Account {
+export interface AccountAsset {
   id: string
   name: string
-  type: string           // e.g. "checking", "savings", "investment"
-  balance: number
+  currentValue: number
   currency: string
   liquidity: LiquidityType
+  liquidationRule?: LiquidationRule
+  fees?: FeeRule[]
+  taxPercentage?: number
   notes?: string
   createdAt: string
   updatedAt: string
 }
 
-export interface Asset {
+export interface Account {
+  id: string
+  name: string
+  type: string            // e.g. "checking", "savings", "retirement"
+  balance: number         // initial setup balance — not overwritten after creation
+  currency: string
+  liquidity: LiquidityType
+  /** Account-level liquidation rule (e.g. early withdrawal penalty for CDs) */
+  liquidationRule?: LiquidationRule
+  /** Account-level fees (e.g. account maintenance fee) */
+  fees?: FeeRule[]
+  taxPercentage?: number
+  notes?: string
+  /** Sub-assets held within this account, each with their own liquidation rules */
+  assets?: AccountAsset[]
+  createdAt: string
+  updatedAt: string
+}
+
+/** Kept only for migrating old .cashflow.json files that still have a top-level assets array */
+export interface LegacyAsset {
   id: string
   name: string
   accountId: string
@@ -88,6 +113,56 @@ export interface FeeRule {
   label?: string
 }
 
+// ─── Account Balance Updates ──────────────────────────────────
+
+export type ReconciliationReason =
+  | 'manualAdjustment'
+  | 'untrackedIncome'
+  | 'untrackedExpense'
+  | 'transferCorrection'
+  | 'balanceCorrection'
+  | 'other'
+
+export interface AccountBalanceUpdate {
+  id: string
+  accountId: string
+  effectiveAt: string        // ISO 8601 datetime (includes time)
+  balance: number
+  liquidity: LiquidityType
+  /** True for the auto-generated record created when the account is first added */
+  isInitialSetup?: boolean
+  /** True for auto-generated records created by a transfer */
+  isTransfer?: boolean
+  /** ID of the paired transfer update on the other account */
+  transferPairId?: string
+  comment?: string
+  reconciliationReason?: ReconciliationReason
+  createdAt: string
+  updatedAt: string
+}
+
+export interface BalanceTraceRecord {
+  accountId: string
+  accountName: string
+  balance: number
+  liquidity: LiquidityType
+  sourceUpdateId?: string
+  effectiveAt?: string
+  fallbackToSetup: boolean
+}
+
+export interface ReconciliationVariance {
+  updateId: string
+  accountId: string
+  accountName: string
+  effectiveAt: string
+  actualBalance: number
+  expectedBalance: number
+  variance: number
+  reconciliationReason?: ReconciliationReason
+  comment?: string
+}
+
 // ─── Line Items ───────────────────────────────────────────────
 
 export interface LineItem {
@@ -101,8 +176,8 @@ export interface LineItem {
   isOptional: boolean
   optionalRule?: ConditionalRule
   seriesComment?: string
-  parentSeriesId?: string   // Set when this series was created by splitting another
-  splitFromDate?: string    // Effective date this series started after a split
+  parentSeriesId?: string
+  splitFromDate?: string
   createdAt: string
   updatedAt: string
 }
@@ -119,16 +194,16 @@ export interface AmountRule {
 
 export interface RecurrenceRule {
   mode: 'singleDate' | 'specificDates' | 'finiteByCount' | 'finiteUntilDate' | 'infinite'
-  startDate?: string           // ISO date YYYY-MM-DD
+  startDate?: string
   singleDate?: string
   specificDates?: string[]
-  interval?: number            // e.g. 1 for monthly, 2 for bi-monthly
+  interval?: number
   unit?: 'day' | 'week' | 'month' | 'year'
-  dayOfMonth?: number          // e.g. 15 for the 15th of every month
+  dayOfMonth?: number
   businessDayRule?: BusinessDayRule
   specialRule?: SpecialDayRule
-  count?: number               // for finiteByCount
-  untilDate?: string           // for finiteUntilDate
+  count?: number
+  untilDate?: string
 }
 
 export interface ConditionalRule {
@@ -145,7 +220,7 @@ export interface ConditionalRule {
 export interface Occurrence {
   id: string
   lineItemId: string
-  date: string               // ISO date YYYY-MM-DD
+  date: string
   amount: number
   type: LineItemType
   category: string
@@ -160,7 +235,7 @@ export interface Occurrence {
 export interface OccurrenceOverride {
   id: string
   lineItemId: string
-  occurrenceDate: string     // ISO date YYYY-MM-DD
+  occurrenceDate: string
   amountOverride?: number
   confirmationStatusOverride?: ConfirmationStatus
   comment?: string
@@ -176,21 +251,23 @@ export interface TraceabilityRecord {
 // ─── Period Aggregation ───────────────────────────────────────
 
 export interface PeriodSummary {
-  periodKey: string          // e.g. "2025-01", "2025-Q1", "2025-H1", "2025"
-  periodLabel: string        // Human-readable: "Jan 2025", "Q1 2025", etc.
-  periodStart: string        // ISO date
-  periodEnd: string          // ISO date
+  periodKey: string
+  periodLabel: string
+  periodStart: string
+  periodEnd: string
   cashFlowIn: number
   cashFlowOut: number
   netSurplusDeficit: number
   cumulativeSurplusDeficit: number
   beginningLiquidBalance: number
   endingLiquidBalance: number
+  beginningIlliquidBalance: number
   occurrences: Occurrence[]
   hasProjected: boolean
   hasConfirmed: boolean
   optionalExpensesIncluded: Occurrence[]
   optionalExpensesExcluded: Occurrence[]
+  beginningBalanceTrace: BalanceTraceRecord[]
 }
 
 export interface CalculationResult {
@@ -200,6 +277,7 @@ export interface CalculationResult {
   pastProjectedIncomeReview: PastProjectedItem[]
   warnings: CashFlowWarning[]
   initialLiquidBalance: number
+  reconciliationVariances: ReconciliationVariance[]
 }
 
 export interface PastProjectedItem {
@@ -217,13 +295,23 @@ export interface CashFlowWarning {
   description: string
 }
 
+// ─── Notifications ────────────────────────────────────────────
+
+export interface AppNotification {
+  /** Stable ID derived from warning type + periodKey, or 'pastProjected' */
+  id: string
+  type: CashFlowWarning['type'] | 'pastProjected'
+  title: string
+  description: string
+}
+
 // ─── Reports ──────────────────────────────────────────────────
 
 export interface ReportDefinition {
   id: string
   name: string
   type: 'monthly' | 'quarterly' | 'halfYearly' | 'yearly'
-  startPeriod: string        // ISO date or period key
+  startPeriod: string
   endPeriod?: string
   numberOfPeriods?: number
   createdAt: string
@@ -275,6 +363,8 @@ export interface AppState {
   recentFiles: RecentFile[]
   selectedLineItemId: string | null
   drillDownPeriodKey: string | null
+  /** IDs of notifications the user has dismissed this session */
+  dismissedNotificationIds: string[]
 }
 
 export interface RecentFile {
@@ -286,20 +376,10 @@ export interface RecentFile {
 // ─── IPC Bridge (preload API) ─────────────────────────────────
 
 export interface FileAPI {
-  newFile: (
-    filePath: string,
-    initialData: CashFlowFile
-  ) => Promise<{ success: boolean; error?: string }>
-  openFile: (
-    filePath?: string
-  ) => Promise<{ success: boolean; data?: CashFlowFile; filePath?: string; error?: string }>
-  saveFile: (
-    filePath: string,
-    data: CashFlowFile
-  ) => Promise<{ success: boolean; error?: string }>
-  showSaveDialog: (
-    defaultName: string
-  ) => Promise<{ canceled: boolean; filePath?: string }>
+  newFile: (filePath: string, initialData: CashFlowFile) => Promise<{ success: boolean; error?: string }>
+  openFile: (filePath?: string) => Promise<{ success: boolean; data?: CashFlowFile; filePath?: string; error?: string }>
+  saveFile: (filePath: string, data: CashFlowFile) => Promise<{ success: boolean; error?: string }>
+  showSaveDialog: (defaultName: string) => Promise<{ canceled: boolean; filePath?: string }>
   showOpenDialog: () => Promise<{ canceled: boolean; filePath?: string }>
   getRecentFiles: () => Promise<RecentFile[]>
   setRecentFile: (file: RecentFile) => Promise<void>

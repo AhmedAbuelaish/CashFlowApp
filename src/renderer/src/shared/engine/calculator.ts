@@ -22,12 +22,16 @@ import {
   isEqual,
   startOfDay,
   endOfDay,
+  startOfWeek,
+  endOfWeek,
   startOfMonth,
   endOfMonth,
   startOfQuarter,
   endOfQuarter,
   startOfYear,
   endOfYear,
+  addDays,
+  addWeeks,
   addMonths,
   addQuarters,
   addYears,
@@ -36,7 +40,8 @@ import {
   isSameMonth,
   getMonth,
   getYear,
-  getQuarter
+  getQuarter,
+  getISOWeek
 } from 'date-fns'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -59,7 +64,11 @@ import type {
   PastProjectedItem,
   AmountRule,
   ConditionalRule,
-  TraceabilityRecord
+  TraceabilityRecord,
+  AccountBalanceUpdate,
+  BalanceTraceRecord,
+  ReconciliationVariance,
+  LiquidityType
 } from '../types'
 
 // ─── Public API ───────────────────────────────────────────────
@@ -82,6 +91,14 @@ export function calculateCashFlow(
   const rangeEnd = fromISODate(options.dateRange.end)
   const initialBalance = file.fileMetadata.initialLiquidBalance ?? 0
 
+  // Prepare balance update records sorted by effectiveAt ascending
+  const balanceUpdates = (file.accountBalanceUpdates ?? [])
+    .slice()
+    .sort((a, b) => a.effectiveAt.localeCompare(b.effectiveAt))
+
+  // Map of accountId -> { name, setupBalance, liquidity }
+  const allAccounts = buildAccountMap(file)
+
   // 1. Generate all raw occurrences
   const rawOccurrences = generateAllOccurrences(file.lineItems, rangeStart, rangeEnd)
 
@@ -95,14 +112,16 @@ export function calculateCashFlow(
   const required = resolvedOccurrences.filter(o => !o.isOptional)
   const optional = resolvedOccurrences.filter(o => o.isOptional)
 
-  // 5–9. Build period summaries with two-pass optional evaluation
+  // 5–9. Build period summaries with two-pass optional evaluation and balance history
   const periods = buildPeriods(options.scale, rangeStart, rangeEnd)
   const summaries = computePeriodSummaries(
     periods,
     required,
     optional,
     file.lineItems,
-    initialBalance
+    initialBalance,
+    balanceUpdates,
+    allAccounts
   )
 
   // 10. Flag past projected income
@@ -117,13 +136,22 @@ export function calculateCashFlow(
   // 11. Build warnings
   const warnings = buildWarnings(summaries)
 
+  // 12. Reconciliation variances
+  const reconciliationVariances = computeReconciliationVariances(
+    balanceUpdates,
+    allAccounts,
+    summaries,
+    initialBalance
+  )
+
   return {
     scale: options.scale,
     dateRange: options.dateRange,
     periods: summaries,
     pastProjectedIncomeReview,
     warnings,
-    initialLiquidBalance: initialBalance
+    initialLiquidBalance: initialBalance,
+    reconciliationVariances
   }
 }
 
@@ -391,6 +419,31 @@ function buildPeriods(
   while (!isAfter(current, rangeEnd)) {
     let bucket: PeriodBucket
     switch (scale) {
+      case 'day': {
+        const s = startOfDay(current)
+        const e = endOfDay(current)
+        bucket = {
+          key: format(s, 'yyyy-MM-dd'),
+          label: format(s, 'MMM d, yyyy'),
+          start: s,
+          end: e
+        }
+        current = addDays(s, 1)
+        break
+      }
+      case 'week': {
+        const s = startOfWeek(current, { weekStartsOn: 1 }) // Monday start
+        const e = endOfWeek(current, { weekStartsOn: 1 })
+        const wk = getISOWeek(s)
+        bucket = {
+          key: `${getYear(s)}-W${String(wk).padStart(2, '0')}`,
+          label: `W${wk} ${format(s, 'MMM d')}`,
+          start: s,
+          end: e
+        }
+        current = addWeeks(s, 1)
+        break
+      }
       case 'month': {
         const s = startOfMonth(current)
         const e = endOfMonth(current)
@@ -420,21 +473,15 @@ function buildPeriods(
         const yr = getYear(current)
         const mo = getMonth(current)
         const isFirstHalf = mo < 6
-        const s = isFirstHalf
-          ? new Date(yr, 0, 1)
-          : new Date(yr, 6, 1)
-        const e = isFirstHalf
-          ? new Date(yr, 5, 30, 23, 59, 59)
-          : new Date(yr, 11, 31, 23, 59, 59)
+        const s = isFirstHalf ? new Date(yr, 0, 1) : new Date(yr, 6, 1)
+        const e = isFirstHalf ? new Date(yr, 5, 30, 23, 59, 59) : new Date(yr, 11, 31, 23, 59, 59)
         bucket = {
           key: `${yr}-H${isFirstHalf ? 1 : 2}`,
           label: `H${isFirstHalf ? 1 : 2} ${yr}`,
           start: s,
           end: e
         }
-        current = isFirstHalf
-          ? new Date(yr, 6, 1)
-          : new Date(yr + 1, 0, 1)
+        current = isFirstHalf ? new Date(yr, 6, 1) : new Date(yr + 1, 0, 1)
         break
       }
       case 'year': {
@@ -463,16 +510,35 @@ function computePeriodSummaries(
   required: Occurrence[],
   optional: Occurrence[],
   lineItems: LineItem[],
-  initialBalance: number
+  initialBalance: number,
+  balanceUpdates: AccountBalanceUpdate[],
+  allAccounts: AccountMap
 ): PeriodSummary[] {
   let cumulativeSurplus = 0
+  // Determine the opening liquid balance from the earliest effective date
+  // across all accounts.  If no updates precede the first period, fall back
+  // to the file-level initialLiquidBalance.
   let beginningBalance = initialBalance
+  let beginningIlliquid = sumSetupIlliquid(allAccounts)
 
   const summaries: PeriodSummary[] = []
 
   for (const period of periods) {
     const periodRequired = occurrencesInPeriod(required, period.start, period.end)
     const periodOptional = occurrencesInPeriod(optional, period.start, period.end)
+
+    // Determine beginning balance from balance history if updates exist
+    // for this period's start time.
+    const { liquid: historyLiquid, illiquid: historyIlliquid, trace } =
+      getEffectiveBalances(allAccounts, balanceUpdates, period.start)
+
+    // Always use the account-derived balance when accounts are defined.
+    // This ensures that asset sums (and explicit balance updates) drive the
+    // beginning balance for every period, superseding fileMetadata.initialLiquidBalance.
+    if (allAccounts.size > 0) {
+      beginningBalance = historyLiquid
+      beginningIlliquid = historyIlliquid
+    }
 
     // Pass 1: required only
     const reqIn  = sumIncome(periodRequired)
@@ -514,18 +580,192 @@ function computePeriodSummaries(
       cumulativeSurplusDeficit: newCumulative,
       beginningLiquidBalance: beginningBalance,
       endingLiquidBalance: endingBalance,
+      beginningIlliquidBalance: beginningIlliquid,
       occurrences: allIncluded,
       hasProjected: allIncluded.some(o => o.confirmationStatus === 'projected'),
       hasConfirmed: allIncluded.some(o => o.confirmationStatus === 'confirmed'),
       optionalExpensesIncluded: includedOptional,
-      optionalExpensesExcluded: excludedOptional
+      optionalExpensesExcluded: excludedOptional,
+      beginningBalanceTrace: trace
     })
 
     cumulativeSurplus = newCumulative
+    // Carry forward: only update the running balance when history didn't
+    // override it at the start of this period — endingBalance is always
+    // the previous period's ending balance used as next period's beginning.
     beginningBalance = endingBalance
   }
 
   return summaries
+}
+
+// ─── Account Balance History Helpers ─────────────────────────
+
+interface AccountEntry {
+  id: string
+  name: string
+  setupBalance: number
+  liquidity: LiquidityType
+  /** True when the account has at least one sub-asset — balance is derived from asset sum */
+  hasAssets: boolean
+}
+type AccountMap = Map<string, AccountEntry>
+
+/** Returns the authoritative balance for an account.
+ *  If the account has sub-assets, that is the sum of their currentValue.
+ *  Otherwise it is account.balance (the setup balance). */
+function accountSetupBalance(a: import('../types').Account): number {
+  const assets = a.assets ?? []
+  if (assets.length > 0) return assets.reduce((s, asset) => s + asset.currentValue, 0)
+  return a.balance
+}
+
+function buildAccountMap(file: CashFlowFile): AccountMap {
+  const map: AccountMap = new Map()
+  for (const a of file.accounts ?? []) {
+    map.set(a.id, {
+      id: a.id, name: a.name,
+      setupBalance: accountSetupBalance(a),
+      liquidity: a.liquidity,
+      hasAssets: (a.assets ?? []).length > 0
+    })
+  }
+  return map
+}
+
+function sumSetupIlliquid(allAccounts: AccountMap): number {
+  let total = 0
+  for (const a of allAccounts.values()) {
+    if (a.liquidity === 'tiedUp') total += a.setupBalance
+  }
+  return total
+}
+
+/**
+ * For each account, find the most recent AccountBalanceUpdate whose effectiveAt
+ * is <= periodStart.  If none exists, use the account's setup balance.
+ * Returns separate liquid and illiquid totals plus a trace array.
+ */
+function getEffectiveBalances(
+  allAccounts: AccountMap,
+  balanceUpdates: AccountBalanceUpdate[],
+  periodStart: Date
+): { liquid: number; illiquid: number; trace: BalanceTraceRecord[] } {
+  const periodStartISO = periodStart.toISOString()
+  let liquid = 0
+  let illiquid = 0
+  const trace: BalanceTraceRecord[] = []
+
+  for (const account of allAccounts.values()) {
+    // For asset-backed accounts the initial auto-created update had balance=0
+    // (account was created with no assets yet). Skip it so the asset sum is used instead.
+    const applicable = balanceUpdates.filter(
+      u => u.accountId === account.id &&
+           u.effectiveAt <= periodStartISO &&
+           !(account.hasAssets && u.isInitialSetup)
+    )
+
+    if (applicable.length > 0) {
+      // Latest applicable update
+      const latest = applicable[applicable.length - 1]
+      if (latest.liquidity === 'liquid') {
+        liquid += latest.balance
+      } else {
+        illiquid += latest.balance
+      }
+      trace.push({
+        accountId: account.id,
+        accountName: account.name,
+        balance: latest.balance,
+        liquidity: latest.liquidity,
+        sourceUpdateId: latest.id,
+        effectiveAt: latest.effectiveAt,
+        fallbackToSetup: false
+      })
+    } else {
+      // Fall back to setup balance
+      if (account.liquidity === 'liquid') {
+        liquid += account.setupBalance
+      } else {
+        illiquid += account.setupBalance
+      }
+      trace.push({
+        accountId: account.id,
+        accountName: account.name,
+        balance: account.setupBalance,
+        liquidity: account.liquidity,
+        fallbackToSetup: true
+      })
+    }
+  }
+
+  return { liquid, illiquid, trace }
+}
+
+/**
+ * For each AccountBalanceUpdate, determine what the engine would have
+ * predicted for that account at that moment, then compute the variance.
+ */
+function computeReconciliationVariances(
+  balanceUpdates: AccountBalanceUpdate[],
+  allAccounts: AccountMap,
+  summaries: PeriodSummary[],
+  initialBalance: number
+): ReconciliationVariance[] {
+  const variances: ReconciliationVariance[] = []
+  if (balanceUpdates.length === 0) return variances
+
+  for (const update of balanceUpdates) {
+    const account = allAccounts.get(update.accountId)
+    if (!account) continue
+
+    // Find the period summary that covers this update's effectiveAt date
+    const updateDate = update.effectiveAt.slice(0, 10)   // YYYY-MM-DD
+    const coveringPeriod = summaries.find(
+      s => s.periodStart <= updateDate && s.periodEnd >= updateDate
+    )
+
+    // Expected balance = the beginning balance of the period that contains
+    // this update.  (Simple heuristic: a more precise implementation would
+    // interpolate within-period cash flow, but beginning-of-period balance
+    // is the right anchor per the spec.)
+    const expectedLiquid = coveringPeriod
+      ? coveringPeriod.beginningLiquidBalance
+      : initialBalance
+
+    // We compare per-account: distribute the total expected liquid balance
+    // proportionally by setup balance.  This is an approximation — a future
+    // per-account ledger would give exact values.
+    const totalSetupLiquid = Array.from(allAccounts.values())
+      .filter(a => a.liquidity === 'liquid')
+      .reduce((s, a) => s + a.setupBalance, 0)
+
+    const accountShare = totalSetupLiquid > 0
+      ? account.setupBalance / totalSetupLiquid
+      : 0
+
+    const expectedForAccount = account.liquidity === 'liquid'
+      ? expectedLiquid * accountShare
+      : 0   // illiquid accounts: engine doesn't move their balance through cash-flow
+
+    const variance = update.balance - expectedForAccount
+
+    if (Math.abs(variance) > 0.01) {
+      variances.push({
+        updateId: update.id,
+        accountId: update.accountId,
+        accountName: account.name,
+        effectiveAt: update.effectiveAt,
+        actualBalance: update.balance,
+        expectedBalance: Math.round(expectedForAccount * 100) / 100,
+        variance: Math.round(variance * 100) / 100,
+        reconciliationReason: update.reconciliationReason,
+        comment: update.comment
+      })
+    }
+  }
+
+  return variances
 }
 
 function occurrencesInPeriod(occs: Occurrence[], start: Date, end: Date): Occurrence[] {
@@ -609,14 +849,14 @@ function findPastProjectedIncome(
 function buildWarnings(summaries: PeriodSummary[]): CashFlowWarning[] {
   const warnings: CashFlowWarning[] = []
   const today = toISODate(startOfDay(new Date()))
-  let foundFirstNegative = false
+  let foundFirstNegativeCumulative = false
+  let foundFirstNegativeBalance = false
 
   for (const period of summaries) {
-    // Only warn about future periods
     if (period.periodEnd < today) continue
 
-    if (!foundFirstNegative && period.cumulativeSurplusDeficit < 0) {
-      foundFirstNegative = true
+    if (!foundFirstNegativeCumulative && period.cumulativeSurplusDeficit < 0) {
+      foundFirstNegativeCumulative = true
       warnings.push({
         type: 'negativeCumulative',
         periodKey: period.periodKey,
@@ -626,13 +866,14 @@ function buildWarnings(summaries: PeriodSummary[]): CashFlowWarning[] {
       })
     }
 
-    if (period.endingLiquidBalance < 0) {
+    if (!foundFirstNegativeBalance && period.endingLiquidBalance < 0) {
+      foundFirstNegativeBalance = true
       warnings.push({
         type: 'negativeBalance',
         periodKey: period.periodKey,
         periodLabel: period.periodLabel,
         amount: period.endingLiquidBalance,
-        description: `Projected liquid balance goes negative in ${period.periodLabel}`
+        description: `Projected liquid balance first goes negative in ${period.periodLabel}`
       })
     }
   }
@@ -820,21 +1061,29 @@ export function defaultDateRange(scale: ViewScale): { start: string; end: string
   let start: Date, end: Date
 
   switch (scale) {
+    case 'day':
+      start = addDays(startOfDay(today), -14)
+      end   = addDays(startOfDay(today), 60)
+      break
+    case 'week':
+      start = addWeeks(startOfWeek(today, { weekStartsOn: 1 }), -4)
+      end   = addWeeks(startOfWeek(today, { weekStartsOn: 1 }), 16)
+      break
     case 'month':
       start = addMonths(startOfMonth(today), -12)
-      end = addMonths(startOfMonth(today), 24)
+      end   = addMonths(startOfMonth(today), 24)
       break
     case 'quarter':
       start = addMonths(startOfQuarter(today), -12)
-      end = addMonths(startOfQuarter(today), 36)
+      end   = addMonths(startOfQuarter(today), 36)
       break
     case 'halfYear':
       start = addMonths(today, -24)
-      end = addMonths(today, 60)
+      end   = addMonths(today, 60)
       break
     case 'year':
       start = startOfYear(addYears(today, -2))
-      end = startOfYear(addYears(today, 5))
+      end   = startOfYear(addYears(today, 5))
       break
   }
 
