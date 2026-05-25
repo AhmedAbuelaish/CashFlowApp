@@ -35,6 +35,7 @@ function makeFile(overrides: Partial<CashFlowFile> = {}): CashFlowFile {
     },
     accounts: [],
     assets: [],
+    accountBalanceUpdates: [],
     lineItems: [],
     occurrenceOverrides: [],
     reports: [],
@@ -664,18 +665,24 @@ describe('sync point balance anchoring', () => {
     })
     const result = calculateCashFlow(file, CALC_OPT)
 
-    // Jan and Feb should carry forward normally (no new update)
+    // Jan and Feb carry forward normally (no new update)
     const jan = result.periods.find(p => p.periodKey === '2025-01')!
     const feb = result.periods.find(p => p.periodKey === '2025-02')!
     expect(jan.beginningLiquidBalance).toBe(1000)
     expect(feb.beginningLiquidBalance).toBe(1500)
 
-    // April is the first period where the March 15 update is fully applicable
-    // (its effectiveAt <= April 1), so April becomes the sync point
-    const apr = result.periods.find(p => p.periodKey === '2025-04')!
-    expect(apr.beginningLiquidBalance).toBe(2500)
+    // With per-day computation, the March 15 update is first applicable on March 15
+    // itself, so March is the sync month.  March income ($500 on the 15th) is added
+    // on top of the synced balance: 2500 + 500 = 3000 ending balance.
+    const mar = result.periods.find(p => p.periodKey === '2025-03')!
+    expect(mar.isSyncPoint).toBe(true)
+    expect(mar.endingLiquidBalance).toBe(3000)
 
-    // May carries forward from April's ending (not resets to 2500 or 1000)
+    // April carries forward from March's ending (not from the raw sync value)
+    const apr = result.periods.find(p => p.periodKey === '2025-04')!
+    expect(apr.beginningLiquidBalance).toBe(3000)
+
+    // May carries forward from April's ending
     const may = result.periods.find(p => p.periodKey === '2025-05')!
     expect(may.beginningLiquidBalance).toBe(apr.endingLiquidBalance)
   })
@@ -701,13 +708,17 @@ describe('sync point balance anchoring', () => {
     })
     const result = calculateCashFlow(file, CALC_OPT)
 
-    const apr = result.periods.find(p => p.periodKey === '2025-04')!
-    expect(apr.isSyncPoint).toBe(true)
+    // With per-day computation, the March 15 update fires in the March daily bucket,
+    // so the March monthly period is the sync point.
+    const mar = result.periods.find(p => p.periodKey === '2025-03')!
+    expect(mar.isSyncPoint).toBe(true)
 
     const jan = result.periods.find(p => p.periodKey === '2025-01')!
     const feb = result.periods.find(p => p.periodKey === '2025-02')!
+    const apr = result.periods.find(p => p.periodKey === '2025-04')!
     expect(jan.isSyncPoint).toBeFalsy()
     expect(feb.isSyncPoint).toBeFalsy()
+    expect(apr.isSyncPoint).toBeFalsy()
   })
 })
 

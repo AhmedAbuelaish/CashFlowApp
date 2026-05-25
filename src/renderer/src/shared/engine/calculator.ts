@@ -112,10 +112,12 @@ export function calculateCashFlow(
   const required = resolvedOccurrences.filter(o => !o.isOptional)
   const optional = resolvedOccurrences.filter(o => o.isOptional)
 
-  // 5–9. Build period summaries with two-pass optional evaluation and balance history
-  const periods = buildPeriods(options.scale, rangeStart, rangeEnd)
-  const summaries = computePeriodSummaries(
-    periods,
+  // 5–9. Build period summaries with two-pass optional evaluation and balance history.
+  // Always compute at day granularity so sync-point detection and carry-forward are
+  // exact regardless of view scale.  Coarser views aggregate the daily results.
+  const dayPeriods = buildPeriods('day', rangeStart, rangeEnd)
+  const daySummaries = computePeriodSummaries(
+    dayPeriods,
     required,
     optional,
     file.lineItems,
@@ -124,6 +126,7 @@ export function calculateCashFlow(
     allAccounts,
     rangeStart
   )
+  const summaries = aggregatePeriods(daySummaries, options.scale, rangeStart, rangeEnd)
 
   // 10. Flag past projected income
   const today = startOfDay(new Date())
@@ -611,6 +614,62 @@ function computePeriodSummaries(
   }
 
   return summaries
+}
+
+// ─── Period Aggregation ───────────────────────────────────────
+
+/**
+ * Groups day-level summaries into coarser period buckets (week, month, quarter, etc.).
+ * For each bucket: beginning balance comes from the first day, ending balance from the
+ * last day, cash flows are summed, and isSyncPoint is true if any day in the bucket
+ * triggered a sync.
+ */
+function aggregatePeriods(
+  daySummaries: PeriodSummary[],
+  scale: ViewScale,
+  rangeStart: Date,
+  rangeEnd: Date
+): PeriodSummary[] {
+  if (scale === 'day') return daySummaries
+
+  const buckets = buildPeriods(scale, rangeStart, rangeEnd)
+  const result: PeriodSummary[] = []
+
+  for (const bucket of buckets) {
+    const bucketStartISO = toISODate(bucket.start)
+    const bucketEndISO = toISODate(bucket.end)
+    const days = daySummaries.filter(
+      d => d.periodStart >= bucketStartISO && d.periodStart <= bucketEndISO
+    )
+
+    if (days.length === 0) continue
+
+    const first = days[0]
+    const last = days[days.length - 1]
+
+    result.push({
+      periodKey: bucket.key,
+      periodLabel: bucket.label,
+      periodStart: bucketStartISO,
+      periodEnd: bucketEndISO,
+      cashFlowIn:  days.reduce((s, d) => s + d.cashFlowIn,  0),
+      cashFlowOut: days.reduce((s, d) => s + d.cashFlowOut, 0),
+      netSurplusDeficit: days.reduce((s, d) => s + d.netSurplusDeficit, 0),
+      cumulativeSurplusDeficit: last.cumulativeSurplusDeficit,
+      beginningLiquidBalance:   first.beginningLiquidBalance,
+      endingLiquidBalance:      last.endingLiquidBalance,
+      beginningIlliquidBalance: first.beginningIlliquidBalance,
+      occurrences: days.flatMap(d => d.occurrences),
+      hasProjected: days.some(d => d.hasProjected),
+      hasConfirmed: days.some(d => d.hasConfirmed),
+      optionalExpensesIncluded: days.flatMap(d => d.optionalExpensesIncluded),
+      optionalExpensesExcluded: days.flatMap(d => d.optionalExpensesExcluded),
+      beginningBalanceTrace: first.beginningBalanceTrace,
+      isSyncPoint: days.some(d => d.isSyncPoint) || undefined
+    })
+  }
+
+  return result
 }
 
 // ─── Account Balance History Helpers ─────────────────────────
