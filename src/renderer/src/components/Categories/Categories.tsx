@@ -113,7 +113,8 @@ export default function Categories() {
   }
 
   return (
-    <div style={{ padding: '1.5rem', maxWidth: 720, height: '100%', overflow: 'auto' }}>
+    <div style={{ height: '100%', overflow: 'auto' }}>
+    <div style={{ padding: '1.5rem', maxWidth: 640, margin: '0 auto' }}>
       <h1 style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '1.5rem' }}>Categories</h1>
 
       {/* Add new */}
@@ -142,7 +143,8 @@ export default function Categories() {
       {renderCategoryList(incomeCategories, 'Income Categories')}
       {renderCategoryList(expenseCategories, 'Expense Categories')}
 
-      {/* Delete modal */}
+    </div>
+    {/* Delete modal */}
       {deleteModal && (
         <div className="modal-overlay" onClick={() => setDeleteModal(null)}>
           <div className="modal" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>

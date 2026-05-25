@@ -9,6 +9,7 @@ import { useEffect, useRef } from 'react'
 
 interface ModalProps {
   title: string
+  subtitle?: string
   onClose: () => void
   children: React.ReactNode
   footer?: React.ReactNode
@@ -16,7 +17,7 @@ interface ModalProps {
   width?: number
 }
 
-export default function Modal({ title, onClose, children, footer, wide, width }: ModalProps) {
+export default function Modal({ title, subtitle, onClose, children, footer, wide, width }: ModalProps) {
   const mouseDownOnBackdrop = useRef(false)
 
   // Close on Escape
@@ -45,7 +46,14 @@ export default function Modal({ title, onClose, children, footer, wide, width }:
         onMouseUp={e => e.stopPropagation()}
       >
         <div className="modal-header">
-          <h2 className="modal-title">{title}</h2>
+          <div>
+            {subtitle && (
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '0 0 2px', fontWeight: 400 }}>
+                {subtitle}
+              </p>
+            )}
+            <h2 className="modal-title">{title}</h2>
+          </div>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
         <div className="modal-body">{children}</div>

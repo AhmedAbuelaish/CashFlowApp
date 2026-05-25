@@ -11,6 +11,22 @@ import type { Account, AccountAsset, LiquidationRule, FeeRule, LiquidityType } f
 import { v4 as uuidv4 } from 'uuid'
 import Modal from '../shared/Modal'
 
+const lbl = {
+  fontSize: '12px', fontWeight: 400, color: 'var(--text-muted)',
+  marginBottom: '4px', display: 'block'
+} as const
+
+const sectionHead = {
+  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+  fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)',
+  borderTop: '1px solid var(--border)', paddingTop: '0.75rem',
+  marginTop: '0.75rem', marginBottom: '0.5rem'
+} as const
+
+function Req() {
+  return <span style={{ color: 'var(--color-expense)', marginLeft: 2 }}>*</span>
+}
+
 // ─── Shared liquidation + fee subform ────────────────────────
 
 interface LiqFeeState {
@@ -65,49 +81,47 @@ function LiqFeeSection({ state, setState }: {
   }
 
   return (
-    <div style={{ marginTop: '1.25rem' }}>
-      {/* Liquidation Rules */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
-        <div style={{ fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Liquidation Rules
-        </div>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', cursor: 'pointer' }}>
+    <div>
+      {/* Liquidation rules */}
+      <div style={sectionHead}>
+        <span>Liquidation rules</span>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', cursor: 'pointer', fontWeight: 400 }}>
           <input type="checkbox" checked={state.liqEnabled} onChange={e => set({ liqEnabled: e.target.checked })} />
           Enable
         </label>
       </div>
 
       {state.liqEnabled && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', padding: '0.75rem', background: 'var(--bg-base)', borderRadius: 6, marginBottom: '0.75rem' }}>
-          <div className="form-group">
-            <label className="form-label">Availability Mode</label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.75rem' }}>
+          <div>
+            <label style={lbl}>Availability mode</label>
             <select className="form-input" value={state.liqMode} onChange={e => set({ liqMode: e.target.value as LiquidationRule['mode'] })}>
-              <option value="fixedDelay">Fixed Delay</option>
-              <option value="periodicAvailability">Periodic Availability</option>
-              <option value="specificDates">Specific Dates</option>
+              <option value="fixedDelay">Fixed delay</option>
+              <option value="periodicAvailability">Periodic availability</option>
+              <option value="specificDates">Specific dates</option>
             </select>
           </div>
-          <div className="form-group" style={{ display: 'flex', alignItems: 'center', paddingTop: '1.4rem' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: '0.45rem' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem', cursor: 'pointer' }}>
               <input type="checkbox" checked={state.useBusinessDays} onChange={e => set({ useBusinessDays: e.target.checked })} />
-              Use Business Days
+              Use business days
             </label>
           </div>
-          <div className="form-group">
-            <label className="form-label">Sale Delay (days)</label>
+          <div>
+            <label style={lbl}>Sale delay (days)</label>
             <input type="number" className="form-input" value={state.saleDelay} onChange={e => set({ saleDelay: e.target.value })} min="0" />
           </div>
-          <div className="form-group">
-            <label className="form-label">Transfer Delay (days)</label>
+          <div>
+            <label style={lbl}>Transfer delay (days)</label>
             <input type="number" className="form-input" value={state.transferDelay} onChange={e => set({ transferDelay: e.target.value })} min="0" />
           </div>
           {state.liqMode === 'periodicAvailability' && (<>
-            <div className="form-group">
-              <label className="form-label">Every (interval)</label>
+            <div>
+              <label style={lbl}>Interval</label>
               <input type="number" className="form-input" value={state.periodicInterval} onChange={e => set({ periodicInterval: e.target.value })} min="1" />
             </div>
-            <div className="form-group">
-              <label className="form-label">Unit</label>
+            <div>
+              <label style={lbl}>Unit</label>
               <select className="form-input" value={state.periodicUnit} onChange={e => set({ periodicUnit: e.target.value as any })}>
                 <option value="month">Month(s)</option>
                 <option value="quarter">Quarter(s)</option>
@@ -116,21 +130,21 @@ function LiqFeeSection({ state, setState }: {
             </div>
           </>)}
           {state.liqMode === 'specificDates' && (
-            <div className="form-group" style={{ gridColumn: '1/-1' }}>
-              <label className="form-label">Dates (comma-separated YYYY-MM-DD)</label>
+            <div style={{ gridColumn: '1/-1' }}>
+              <label style={lbl}>Dates (comma-separated YYYY-MM-DD)</label>
               <input className="form-input" value={state.specificDatesStr} onChange={e => set({ specificDatesStr: e.target.value })} placeholder="2025-06-30, 2025-12-31" />
             </div>
           )}
-          <div className="form-group">
-            <label className="form-label">Tax Estimate (%)</label>
+          <div>
+            <label style={lbl}>Tax estimate (%)</label>
             <input type="number" className="form-input" value={state.taxPct} onChange={e => set({ taxPct: e.target.value })} min="0" max="100" step="0.1" placeholder="e.g. 20" />
           </div>
         </div>
       )}
 
-      {/* Fees & Penalties */}
-      <div style={{ fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.6rem' }}>
-        Fees &amp; Penalties
+      {/* Fees & penalties */}
+      <div style={sectionHead}>
+        <span>Fees &amp; penalties</span>
       </div>
       {state.fees.map(f => (
         <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0.75rem', background: 'var(--bg-card)', borderRadius: 4, marginBottom: 4, fontSize: '0.82rem' }}>
@@ -138,23 +152,23 @@ function LiqFeeSection({ state, setState }: {
           <button onClick={() => set({ fees: state.fees.filter(x => x.id !== f.id) })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-expense)', fontSize: '0.8rem' }}>✕</button>
         </div>
       ))}
-      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-        <div className="form-group" style={{ flex: 1, minWidth: 100, marginBottom: 0 }}>
-          <label className="form-label">Type</label>
+      <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 1fr auto', gap: '0.5rem', alignItems: 'flex-end', marginTop: '0.4rem' }}>
+        <div>
+          <label style={lbl}>Type</label>
           <select className="form-input" value={state.newFeeMode} onChange={e => set({ newFeeMode: e.target.value as any })}>
             <option value="fixed">Fixed $</option>
-            <option value="percentage">Percentage %</option>
+            <option value="percentage">Pct %</option>
           </select>
         </div>
-        <div className="form-group" style={{ flex: 1, minWidth: 80, marginBottom: 0 }}>
-          <label className="form-label">Amount</label>
+        <div>
+          <label style={lbl}>Amount</label>
           <input type="number" className="form-input" value={state.newFeeAmount} onChange={e => set({ newFeeAmount: e.target.value })} min="0" step="0.01" />
         </div>
-        <div className="form-group" style={{ flex: 2, minWidth: 120, marginBottom: 0 }}>
-          <label className="form-label">Label (optional)</label>
-          <input className="form-input" value={state.newFeeLabel} onChange={e => set({ newFeeLabel: e.target.value })} placeholder="e.g. Early withdrawal" />
+        <div>
+          <label style={lbl}>Label</label>
+          <input className="form-input" value={state.newFeeLabel} onChange={e => set({ newFeeLabel: e.target.value })} placeholder="Optional" />
         </div>
-        <button className="btn btn-ghost btn-sm" onClick={addFee}>+ Add Fee</button>
+        <button className="btn btn-ghost btn-sm" onClick={addFee} style={{ whiteSpace: 'nowrap' }}>+ Add</button>
       </div>
     </div>
   )
@@ -225,21 +239,34 @@ export function AccountForm({ mode, existing, onClose }: AccountFormProps) {
   }
 
   return (
-    <Modal title={mode === 'edit' ? 'Edit Account' : 'Add Account'} onClose={onClose} width={560}>
-      <div style={{ maxHeight: '75vh', overflowY: 'auto', paddingRight: 4 }}>
+    <Modal
+      subtitle={mode === 'edit' ? existing?.name : undefined}
+      title={mode === 'edit' ? 'Edit account' : 'Add account'}
+      onClose={onClose}
+      width={560}
+      footer={
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleSave}>
+            {mode === 'edit' ? 'Save changes' : 'Add account'}
+          </button>
+        </div>
+      }
+    >
+      <div style={{ maxHeight: '70vh', overflowY: 'auto', paddingRight: 4 }}>
         {errors.length > 0 && (
           <div style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid var(--color-expense)', borderRadius: 6, padding: '0.6rem', marginBottom: '0.75rem' }}>
             {errors.map((e, i) => <div key={i} style={{ fontSize: '0.82rem', color: 'var(--color-expense)' }}>• {e}</div>)}
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-          <div className="form-group" style={{ gridColumn: '1/-1' }}>
-            <label className="form-label">Name *</label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+          <div style={{ gridColumn: '1/-1' }}>
+            <label style={lbl}>Name <Req /></label>
             <input className="form-input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Checking Account" />
           </div>
-          <div className="form-group">
-            <label className="form-label">Type</label>
+          <div>
+            <label style={lbl}>Type</label>
             <select className="form-input" value={type} onChange={e => setType(e.target.value)}>
               <option value="checking">Checking</option>
               <option value="savings">Savings</option>
@@ -251,48 +278,40 @@ export function AccountForm({ mode, existing, onClose }: AccountFormProps) {
               <option value="other">Other</option>
             </select>
           </div>
-          <div className="form-group">
-            <label className="form-label">Liquidity</label>
+          <div>
+            <label style={lbl}>Liquidity</label>
             <select className="form-input" value={liquidity} onChange={e => setLiquidity(e.target.value as LiquidityType)}>
               <option value="liquid">Liquid</option>
-              <option value="tiedUp">Tied Up / Illiquid</option>
+              <option value="tiedUp">Tied up / Illiquid</option>
             </select>
           </div>
 
-          {/* Balance only shown on add — edit uses Update Balance button */}
           {mode === 'add' && (
-            <div className="form-group">
-              <label className="form-label">Starting Balance *</label>
+            <div>
+              <label style={lbl}>Starting balance <Req /></label>
               <input type="number" className="form-input" value={balance} onChange={e => setBalance(e.target.value)} step="0.01" />
             </div>
           )}
           {mode === 'edit' && (
-            <div className="form-group">
-              <label className="form-label" style={{ color: 'var(--text-muted)' }}>Balance</label>
-              <div style={{ padding: '0.5rem 0.6rem', background: 'var(--bg-base)', borderRadius: 6, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                Use the <strong>Update Balance</strong> button to record balance changes with a date and time.
+            <div>
+              <label style={lbl}>Balance</label>
+              <div style={{ padding: '0.5rem 0.6rem', background: 'var(--bg-base)', borderRadius: 6, fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                Use <strong>Update balance</strong> to record changes with a date.
               </div>
             </div>
           )}
 
-          <div className="form-group">
-            <label className="form-label">Currency</label>
+          <div>
+            <label style={lbl}>Currency</label>
             <input className="form-input" value={currency} onChange={e => setCurrency(e.target.value.toUpperCase())} maxLength={3} placeholder="USD" />
           </div>
-          <div className="form-group" style={{ gridColumn: '1/-1' }}>
-            <label className="form-label">Notes</label>
+          <div style={{ gridColumn: '1/-1' }}>
+            <label style={lbl}>Notes</label>
             <textarea className="form-input" value={notes} onChange={e => setNotes(e.target.value)} rows={2} style={{ resize: 'vertical' }} />
           </div>
         </div>
 
         <LiqFeeSection state={liqFee} setState={setLiqFee} />
-      </div>
-
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
-        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={handleSave}>
-          {mode === 'edit' ? 'Save Changes' : 'Add Account'}
-        </button>
       </div>
     </Modal>
   )
@@ -345,47 +364,54 @@ export function AccountAssetForm({ accountId, accountName, mode, existing, onClo
   }
 
   return (
-    <Modal title={`${mode === 'edit' ? 'Edit' : 'Add'} Asset — ${accountName}`} onClose={onClose} width={540}>
+    <Modal
+      subtitle={accountName}
+      title={mode === 'edit' ? 'Edit asset' : 'Add asset'}
+      onClose={onClose}
+      width={540}
+      footer={
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleSave}>
+            {mode === 'edit' ? 'Save changes' : 'Add asset'}
+          </button>
+        </div>
+      }
+    >
       <div style={{ maxHeight: '70vh', overflowY: 'auto', paddingRight: 4 }}>
         {errors.length > 0 && (
           <div style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid var(--color-expense)', borderRadius: 6, padding: '0.6rem', marginBottom: '0.75rem' }}>
             {errors.map((e, i) => <div key={i} style={{ fontSize: '0.82rem', color: 'var(--color-expense)' }}>• {e}</div>)}
           </div>
         )}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-          <div className="form-group" style={{ gridColumn: '1/-1' }}>
-            <label className="form-label">Asset Name *</label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+          <div style={{ gridColumn: '1/-1' }}>
+            <label style={lbl}>Asset name <Req /></label>
             <input className="form-input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Vanguard Total Market" />
           </div>
           {mode === 'add' && (
-            <div className="form-group">
-              <label className="form-label">Current Value *</label>
+            <div>
+              <label style={lbl}>Current value <Req /></label>
               <input type="number" className="form-input" value={value} onChange={e => setValue(e.target.value)} step="0.01" />
             </div>
           )}
-          <div className="form-group">
-            <label className="form-label">Currency</label>
+          <div>
+            <label style={lbl}>Currency</label>
             <input className="form-input" value={currency} onChange={e => setCurrency(e.target.value.toUpperCase())} maxLength={3} />
           </div>
-          <div className="form-group">
-            <label className="form-label">Liquidity</label>
+          <div>
+            <label style={lbl}>Liquidity</label>
             <select className="form-input" value={liquidity} onChange={e => setLiquidity(e.target.value as LiquidityType)}>
               <option value="liquid">Liquid</option>
-              <option value="tiedUp">Tied Up / Illiquid</option>
+              <option value="tiedUp">Tied up / Illiquid</option>
             </select>
           </div>
-          <div className="form-group" style={{ gridColumn: '1/-1' }}>
-            <label className="form-label">Notes</label>
+          <div style={{ gridColumn: '1/-1' }}>
+            <label style={lbl}>Notes</label>
             <textarea className="form-input" value={notes} onChange={e => setNotes(e.target.value)} rows={2} style={{ resize: 'vertical' }} />
           </div>
         </div>
         <LiqFeeSection state={liqFee} setState={setLiqFee} />
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
-        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={handleSave}>
-          {mode === 'edit' ? 'Save Changes' : 'Add Asset'}
-        </button>
       </div>
     </Modal>
   )

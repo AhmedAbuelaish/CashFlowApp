@@ -5,6 +5,7 @@ import type { CalculationResult, PeriodSummary, Occurrence } from '../../shared/
 interface Props {
   result: CalculationResult
   currency: string
+  todayPeriodKey?: string | null
 }
 
 function fmt(value: number, currency: string): string {
@@ -197,7 +198,11 @@ function SummaryRow({ label, value, type, currency, bold }: {
   )
 }
 
-export default function CashFlowTable({ result, currency }: Props) {
+const stickyLabel: React.CSSProperties = {
+  position: 'sticky', left: 0, background: 'var(--bg-panel)', zIndex: 1
+}
+
+export default function CashFlowTable({ result, currency, todayPeriodKey }: Props) {
   const [drillDownPeriod, setDrillDownPeriod] = useState<PeriodSummary | null>(null)
   const currentFile = useAppStore(s => s.currentFile)
   const lineItems = currentFile?.lineItems ?? []
@@ -216,24 +221,31 @@ export default function CashFlowTable({ result, currency }: Props) {
 
   return (
     <div style={{ position: 'relative' }}>
-      <div style={{ overflowX: 'auto', overflowY: 'auto' }}>
-        <table className="data-table">
+      <table className="data-table">
           <thead>
             <tr>
-              <th style={{ minWidth: '200px', textAlign: 'left' }}>Line Item</th>
-              {periods.map(p => (
-                <th
-                  key={p.periodKey}
-                  style={{ minWidth: '110px', cursor: 'pointer' }}
-                  onClick={() => setDrillDownPeriod(p)}
-                  title="Click to drill into period"
-                >
-                  <div>{p.periodLabel}</div>
-                  {p.hasProjected && (
-                    <div style={{ fontSize: '9px', color: 'var(--projected)', fontWeight: 400 }}>projected</div>
-                  )}
-                </th>
-              ))}
+              <th style={{ minWidth: '200px', textAlign: 'left', ...stickyLabel }}>Line Item</th>
+              {periods.map(p => {
+                const isToday = p.periodKey === todayPeriodKey
+                return (
+                  <th
+                    key={p.periodKey}
+                    style={{
+                      minWidth: '110px', cursor: 'pointer',
+                      background: isToday ? 'rgba(96,165,250,0.15)' : undefined,
+                      color: isToday ? 'rgba(96,165,250,1)' : undefined,
+                      borderBottom: isToday ? '2px solid rgba(96,165,250,0.6)' : undefined
+                    }}
+                    onClick={() => setDrillDownPeriod(p)}
+                    title="Click to drill into period"
+                  >
+                    <div>{p.periodLabel}</div>
+                    {p.hasProjected && (
+                      <div style={{ fontSize: '9px', color: 'var(--projected)', fontWeight: 400 }}>projected</div>
+                    )}
+                  </th>
+                )
+              })}
             </tr>
           </thead>
           <tbody>
@@ -253,7 +265,7 @@ export default function CashFlowTable({ result, currency }: Props) {
             </tr>
             {incomeItems.map(item => (
               <tr key={item.id} className="row-income">
-                <td style={{ color: 'var(--text-primary)' }}>
+                <td style={{ color: 'var(--text-primary)', ...stickyLabel }}>
                   <div style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {item.name}
                     {item.confirmationStatus === 'projected' && (
@@ -279,7 +291,7 @@ export default function CashFlowTable({ result, currency }: Props) {
 
             {/* Total cash flow in */}
             <tr className="row-summary" style={{ background: 'rgba(52,211,153,.08)' }}>
-              <td style={{ color: 'var(--income)', fontWeight: 700 }}>Total Cash Flow In</td>
+              <td style={{ color: 'var(--income)', fontWeight: 700, ...stickyLabel }}>Total Cash Flow In</td>
               {periods.map(p => (
                 <td key={p.periodKey} style={{ fontFamily: 'var(--font-mono)' }}>
                   <AmountCell value={p.cashFlowIn} currency={currency} type="income" />
@@ -307,7 +319,7 @@ export default function CashFlowTable({ result, currency }: Props) {
             {expenseItems.map(item => {
               return (
                 <tr key={item.id} className="row-expense">
-                  <td style={{ color: 'var(--text-primary)' }}>
+                  <td style={{ color: 'var(--text-primary)', ...stickyLabel }}>
                     <div style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {item.name}
                       {item.isOptional && (
@@ -342,7 +354,7 @@ export default function CashFlowTable({ result, currency }: Props) {
 
             {/* Total cash flow out */}
             <tr className="row-summary" style={{ background: 'rgba(248,113,113,.08)' }}>
-              <td style={{ color: 'var(--expense)', fontWeight: 700 }}>Total Cash Flow Out</td>
+              <td style={{ color: 'var(--expense)', fontWeight: 700, ...stickyLabel }}>Total Cash Flow Out</td>
               {periods.map(p => (
                 <td key={p.periodKey} style={{ fontFamily: 'var(--font-mono)' }}>
                   <AmountCell value={p.cashFlowOut} currency={currency} type="expense" />
@@ -355,7 +367,7 @@ export default function CashFlowTable({ result, currency }: Props) {
 
             {/* Net surplus/deficit */}
             <tr className="row-summary">
-              <td style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Period Net Surplus / Deficit</td>
+              <td style={{ color: 'var(--text-primary)', fontWeight: 700, ...stickyLabel }}>Period Net Surplus / Deficit</td>
               {periods.map(p => (
                 <td key={p.periodKey} style={{ fontFamily: 'var(--font-mono)' }}>
                   <AmountCell value={p.netSurplusDeficit} currency={currency} type="net" />
@@ -365,7 +377,7 @@ export default function CashFlowTable({ result, currency }: Props) {
 
             {/* Cumulative */}
             <tr className="row-summary row-cumulative">
-              <td style={{ color: 'var(--cumulative-pos)', fontWeight: 700 }}>
+              <td style={{ color: 'var(--cumulative-pos)', fontWeight: 700, ...stickyLabel }}>
                 Cumulative Surplus / Deficit
               </td>
               {periods.map(p => (
@@ -377,7 +389,7 @@ export default function CashFlowTable({ result, currency }: Props) {
 
             {/* Balances */}
             <tr style={{ borderTop: '1px solid var(--border)' }}>
-              <td style={{ color: 'var(--text-secondary)' }}>Beginning Liquid Balance</td>
+              <td style={{ color: 'var(--text-secondary)', ...stickyLabel }}>Beginning Liquid Balance</td>
               {periods.map(p => (
                 <td key={p.periodKey} style={{ fontFamily: 'var(--font-mono)' }}>
                   <AmountCell value={p.beginningLiquidBalance} currency={currency} type="balance" />
@@ -385,7 +397,7 @@ export default function CashFlowTable({ result, currency }: Props) {
               ))}
             </tr>
             <tr className="row-summary">
-              <td style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Ending Liquid Balance</td>
+              <td style={{ color: 'var(--text-primary)', fontWeight: 700, ...stickyLabel }}>Ending Liquid Balance</td>
               {periods.map(p => (
                 <td
                   key={p.periodKey}
@@ -400,7 +412,6 @@ export default function CashFlowTable({ result, currency }: Props) {
             </tr>
           </tbody>
         </table>
-      </div>
 
       {/* Drill-down overlay */}
       {drillDownPeriod && (
