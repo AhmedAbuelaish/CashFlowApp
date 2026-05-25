@@ -268,6 +268,8 @@ export interface PeriodSummary {
   optionalExpensesIncluded: Occurrence[]
   optionalExpensesExcluded: Occurrence[]
   beginningBalanceTrace: BalanceTraceRecord[]
+  /** True when beginningLiquidBalance was anchored to a user-defined AccountBalanceUpdate (sync point) */
+  isSyncPoint?: boolean
 }
 
 export interface CalculationResult {
