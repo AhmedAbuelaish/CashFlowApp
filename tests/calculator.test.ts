@@ -710,3 +710,83 @@ describe('sync point balance anchoring', () => {
     expect(feb.isSyncPoint).toBeFalsy()
   })
 })
+
+// ── Cumulative = Running Liquid Balance ───────────────────────
+
+describe('cumulative surplus equals running liquid balance', () => {
+  it('cumulativeSurplusDeficit equals endingLiquidBalance every period when accounts exist', () => {
+    const { account, update } = liquidAccount('Checking', 5000, '2025-01-01')
+    const file = makeFile({
+      accounts: [account],
+      accountBalanceUpdates: [update],
+      lineItems: [
+        incomeItem('Salary', 3000, monthlyRule('2025-01-15')),
+        expenseItem('Rent', 2000, monthlyRule('2025-01-01'))
+      ]
+    })
+    const result = calculateCashFlow(file, CALC_OPT)
+
+    for (const period of result.periods) {
+      expect(period.cumulativeSurplusDeficit).toBe(period.endingLiquidBalance)
+    }
+  })
+
+  it('cumulative starts from the account balance, not zero', () => {
+    const { account, update } = liquidAccount('Checking', 5000, '2025-01-01')
+    const file = makeFile({
+      accounts: [account],
+      accountBalanceUpdates: [update],
+      lineItems: [
+        incomeItem('Salary', 1000, monthlyRule('2025-01-15'))
+      ]
+    })
+    const result = calculateCashFlow(file, CALC_OPT)
+    const jan = result.periods.find(p => p.periodKey === '2025-01')!
+
+    // Cumulative should be 5000 (starting balance) + 1000 (income) = 6000, not just 1000
+    expect(jan.cumulativeSurplusDeficit).toBe(6000)
+  })
+
+  it('shows a deficit when expenses drain the account below zero', () => {
+    const { account, update } = liquidAccount('Checking', 500, '2025-01-01')
+    const file = makeFile({
+      accounts: [account],
+      accountBalanceUpdates: [update],
+      lineItems: [
+        expenseItem('BigBill', 2000, { mode: 'singleDate', singleDate: '2025-02-01' })
+      ]
+    })
+    const result = calculateCashFlow(file, CALC_OPT)
+    const feb = result.periods.find(p => p.periodKey === '2025-02')!
+
+    // 500 starting - 2000 expense = -1500 deficit
+    expect(feb.cumulativeSurplusDeficit).toBe(-1500)
+    expect(feb.endingLiquidBalance).toBe(-1500)
+  })
+
+  it('sync point resets the cumulative to the new actual balance', () => {
+    const { account, update } = liquidAccount('Checking', 1000, '2025-01-01')
+    const now = new Date().toISOString()
+    const syncUpdate: AccountBalanceUpdate = {
+      id: uuidv4(),
+      accountId: account.id,
+      effectiveAt: '2025-03-15T00:00:00.000Z',
+      balance: 8000,
+      liquidity: 'liquid',
+      createdAt: now,
+      updatedAt: now
+    }
+    const file = makeFile({
+      accounts: [account],
+      accountBalanceUpdates: [update, syncUpdate],
+      lineItems: []
+    })
+    const result = calculateCashFlow(file, CALC_OPT)
+
+    // April is the sync period: cumulative resets to 8000
+    const apr = result.periods.find(p => p.periodKey === '2025-04')!
+    expect(apr.beginningLiquidBalance).toBe(8000)
+    expect(apr.cumulativeSurplusDeficit).toBe(8000)
+    expect(apr.cumulativeSurplusDeficit).toBe(apr.endingLiquidBalance)
+  })
+})
