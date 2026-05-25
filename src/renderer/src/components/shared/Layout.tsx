@@ -12,7 +12,7 @@ const NAV_ITEMS: { page: AppPage; icon: string; label: string }[] = [
   { page: 'lineItems',  icon: '≡', label: 'Line Items' },
   { page: 'accounts',   icon: '⬡', label: 'Accounts' },
   { page: 'categories', icon: '🏷', label: 'Categories' },
-  { page: 'reports',    icon: '📋', label: 'Reports' },
+  { page: 'reports',    icon: '▤', label: 'Reports' },
   { page: 'settings',  icon: '⚙', label: 'Settings' }
 ]
 
