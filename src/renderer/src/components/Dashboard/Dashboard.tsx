@@ -14,6 +14,22 @@ const LABEL_WIDTH = 200
 
 type PanelState = 'both' | 'chartOnly' | 'tableOnly'
 
+function StatCard({ label, value, color, prefix }: { label: string; value: number; color: string; prefix?: string }) {
+  const abs = Math.abs(value)
+  const fmt = abs >= 1_000_000 ? `${(abs / 1_000_000).toFixed(2)}M`
+            : abs >= 1_000     ? `${(abs / 1_000).toFixed(1)}k`
+            : abs.toFixed(0)
+  return (
+    <div style={{ flex: 1, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', minWidth: 0 }}>
+      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+      <div style={{ fontSize: '18px', fontWeight: 700, fontFamily: 'var(--font-mono)', color, lineHeight: 1.2 }}>
+        {prefix && <span style={{ fontSize: '13px', marginRight: '1px', opacity: 0.8 }}>{prefix}</span>}
+        <span style={{ fontSize: '12px', opacity: 0.6 }}>$</span>{fmt}
+      </div>
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const viewScale = useAppStore(s => s.viewScale)
   const cumulativeChartMode = useAppStore(s => s.cumulativeChartMode)
@@ -32,6 +48,15 @@ export default function Dashboard() {
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const todayISO = useMemo(() => format(new Date(), 'yyyy-MM-dd'), [])
+
+  // Stat card values
+  const todayPeriod  = useMemo(() => calculationResult?.periods.find(p => p.periodStart <= todayISO && todayISO <= p.periodEnd), [calculationResult?.periods, todayISO])
+  const lastPeriod   = calculationResult?.periods[calculationResult.periods.length - 1]
+  const nowMonth     = new Date().getMonth()
+  const nowYear      = new Date().getFullYear()
+  const monthInISO   = `${nowYear}-${String(nowMonth + 1).padStart(2, '0')}`
+  const monthIncome  = useMemo(() => (calculationResult?.periods ?? []).filter(p => p.periodStart.startsWith(monthInISO)).reduce((s, p) => s + p.cashFlowIn, 0), [calculationResult?.periods, monthInISO])
+  const monthExpense = useMemo(() => (calculationResult?.periods ?? []).filter(p => p.periodStart.startsWith(monthInISO)).reduce((s, p) => s + p.cashFlowOut, 0), [calculationResult?.periods, monthInISO])
 
   const periods = calculationResult?.periods ?? []
   const totalWidth = Math.max(600, LABEL_WIDTH + periods.length * COL_WIDTH)
@@ -96,6 +121,16 @@ export default function Dashboard() {
           >+ Expense</button>
         </div>
       </div>
+
+      {/* Stat cards */}
+      {calculationResult && (
+        <div style={styles.statRow}>
+          <StatCard label="Current balance" value={todayPeriod?.endingLiquidBalance ?? calculationResult.initialLiquidBalance} color="var(--surplus)" />
+          <StatCard label="End-of-range balance" value={lastPeriod?.endingLiquidBalance ?? 0} color={lastPeriod && lastPeriod.endingLiquidBalance < 0 ? 'var(--deficit)' : 'var(--surplus)'} />
+          <StatCard label={`Income (${new Date().toLocaleDateString('en', { month: 'short' })})`} value={monthIncome} color="var(--income)" prefix="+" />
+          <StatCard label={`Expenses (${new Date().toLocaleDateString('en', { month: 'short' })})`} value={monthExpense} color="var(--expense)" prefix="−" />
+        </div>
+      )}
 
       {/* Toolbar — outside the two-column split so it spans full width */}
       <div style={styles.toolbar}>
@@ -303,6 +338,14 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'var(--bg-panel)',
     flexShrink: 0,
     gap: '12px'
+  },
+  statRow: {
+    display: 'flex',
+    gap: '8px',
+    padding: '10px 16px',
+    borderBottom: '1px solid var(--border)',
+    background: 'var(--bg-base)',
+    flexShrink: 0
   },
   pageTitle: {
     fontSize: '18px',
