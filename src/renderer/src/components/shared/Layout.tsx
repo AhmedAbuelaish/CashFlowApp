@@ -31,7 +31,6 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Output',
     items: [
       { page: 'reports',  icon: '▤', label: 'Reports' },
-      { page: 'settings', icon: '⚙',  label: 'Settings' },
     ]
   }
 ]
@@ -219,6 +218,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
           ))}
         </nav>
+
+        {/* Settings pinned at bottom above footer */}
+        <div style={{ padding: '4px 8px', borderTop: '1px solid var(--border)' }}>
+          <button
+            className={`side-item-v2 ${currentPage === 'settings' ? 'active' : ''}`}
+            onClick={() => setCurrentPage('settings')}
+          >
+            <span className="side-icon-v2">⚙</span>
+            <span>Settings</span>
+          </button>
+        </div>
 
         <div className="side-footer-v2">
           {currentFile && (
