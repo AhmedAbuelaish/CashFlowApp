@@ -30,7 +30,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Output',
     items: [
-      { page: 'reports',  icon: '📋', label: 'Reports' },
+      { page: 'reports',  icon: '▤', label: 'Reports' },
       { page: 'settings', icon: '⚙',  label: 'Settings' },
     ]
   }
