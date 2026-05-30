@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react'
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { format } from 'date-fns'
 import { useAppStore } from '../../store/appStore'
 import CashFlowChart from './CashFlowChart'
@@ -49,6 +49,24 @@ export default function Dashboard() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const todayISO = useMemo(() => format(new Date(), 'yyyy-MM-dd'), [])
 
+  const [visibleRange, setVisibleRange] = useState<{ startDate: string; endDate: string } | null>(null)
+
+  const computeVisible = useCallback(() => {
+    const el = scrollRef.current
+    if (!el || !periods.length) return
+    const sl    = el.scrollLeft
+    const dataW = Math.max(COL_WIDTH, el.clientWidth - LABEL_WIDTH)
+    const first = Math.max(0, Math.min(periods.length - 1, Math.floor(sl / COL_WIDTH)))
+    const last  = Math.max(first, Math.min(periods.length - 1, Math.floor((sl + dataW - 1) / COL_WIDTH)))
+    const startDate = periods[first].periodStart
+    const endDate   = periods[last].periodEnd
+    setVisibleRange(prev =>
+      prev?.startDate === startDate && prev?.endDate === endDate
+        ? prev
+        : { startDate, endDate }
+    )
+  }, [periods])
+
   // Stat card values
   const todayPeriod  = useMemo(() => calculationResult?.periods.find(p => p.periodStart <= todayISO && todayISO <= p.periodEnd), [calculationResult?.periods, todayISO])
   const lastPeriod   = calculationResult?.periods[calculationResult.periods.length - 1]
@@ -75,6 +93,7 @@ export default function Dashboard() {
     if (todayIdx < 0) return
     const prevIdx = Math.max(0, todayIdx - 1)
     scrollRef.current.scrollLeft = prevIdx * COL_WIDTH
+    requestAnimationFrame(computeVisible)
   }, [periods.length, periods[0]?.periodKey]) // re-scroll when period set changes
 
   const SCALES: ViewScale[] = ['day', 'week', 'month', 'quarter', 'halfYear', 'year']
@@ -179,7 +198,7 @@ export default function Dashboard() {
       <div className="dash-layout-v2">
         <div className="dash-main-v2">
           {/* Shared horizontal scroll container — chart and all tables scroll together */}
-          <div ref={scrollRef} style={styles.scrollContainer}>
+          <div ref={scrollRef} style={styles.scrollContainer} onScroll={computeVisible}>
             <div style={{ width: totalWidth, minWidth: '100%', display: 'flex', flexDirection: 'column', background: 'var(--border)', gap: '1px' }}>
 
               {/* Chart panel */}
@@ -266,6 +285,7 @@ export default function Dashboard() {
           scrollRef={scrollRef}
           colWidth={COL_WIDTH}
           labelWidth={LABEL_WIDTH}
+          visibleRange={visibleRange}
         />
       </div>
 
