@@ -261,7 +261,7 @@ function UpcomingEvents({ periods, currency }: UpcomingEventsProps) {
 // Adaptive calendar
 // ────────────────────────────────────────────────────────────────
 
-type CalMode = 'days' | 'months' | 'years'
+type CalMode = 'days' | 'months' | 'quarters' | 'halfs' | 'years'
 
 const MON3     = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const FULLMON  = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -318,8 +318,10 @@ function CalendarNav({ periods, viewScale, onScaleChange, todayPeriodKey, scroll
     return new Set(periods.slice(firstCol, lastCol + 1).map(p => p.periodKey))
   }, [periods, scrollRef, colWidth, labelWidth])
 
+  // viewScale: 'day' | 'week' | 'month' | 'quarter' | 'halfYear' | 'year'
   const calMode: CalMode =
     viewScale === 'day' || viewScale === 'week' ? 'days' :
+    viewScale === 'month' || viewScale === 'quarter' || viewScale === 'halfYear'? 'months' :
     viewScale === 'year' ? 'years' : 'months'
 
   const todayKey = format(today, 'yyyy-MM-dd')
@@ -340,17 +342,17 @@ function CalendarNav({ periods, viewScale, onScaleChange, todayPeriodKey, scroll
 
   let title: React.ReactNode
   if (calMode === 'days')   title = <><b>{FULLMON[view.m]}</b><span className="cal-year">{view.y}</span></>
-  else if (calMode === 'months') title = <b>{view.y}</b>
-  else { const base = view.y - view.y % 4; title = <b>{base}–{base + 11}</b> }
+  else title = <b>{view.y}</b>
+  // else { const base = view.y - view.y % 4; title = <b>{base}–{base + 11}</b> }
 
   const prevView = () => {
     if (calMode === 'days')   setView(v => { const d = new Date(v.y, v.m - 1); return { y: d.getFullYear(), m: d.getMonth() } })
-    else if (calMode === 'months') setView(v => ({ ...v, y: v.y - 1 }))
+    else if (calMode === 'months' || calMode === 'years') setView(v => ({ ...v, y: v.y - 1 }))
     else setView(v => ({ ...v, y: v.y - 12 }))
   }
   const nextView = () => {
     if (calMode === 'days')   setView(v => { const d = new Date(v.y, v.m + 1); return { y: d.getFullYear(), m: d.getMonth() } })
-    else if (calMode === 'months') setView(v => ({ ...v, y: v.y + 1 }))
+    else if (calMode === 'months' || calMode === 'years') setView(v => ({ ...v, y: v.y + 1 }))
     else setView(v => ({ ...v, y: v.y + 12 }))
   }
 
@@ -469,21 +471,18 @@ function CalendarNav({ periods, viewScale, onScaleChange, todayPeriodKey, scroll
   return (
     <section className={`rail-card cal-card${collapsed ? ' collapsed' : ''}`}>
       <div className="cal-hd">
-        <button className="cal-collapse" onClick={() => setCollapsed(c => !c)} title={collapsed ? 'Expand' : 'Collapse'}>
-          {collapsed ? '▶' : '▼'}
-        </button>
         <div className="cal-title" style={{ cursor: 'default' }}>
           {title}
         </div>
         <div className="cal-nav">
+          <button className="cal-arrow" onClick={prevView} title="Previous">◀</button>
           <button className="cal-today" onClick={() => {
             setView({ y: today.getFullYear(), m: today.getMonth() })
             jumpToDate(format(today, 'yyyy-MM-dd'))
           }}>TODAY</button>
-          <button className="cal-arrow" onClick={prevView} title="Previous">◀</button>
           <button className="cal-arrow" onClick={nextView} title="Next">▶</button>
-          <button className="cal-arrow" onClick={() => zoom(1)}  title="Zoom out" disabled={levelIdx >= LEVEL_ORDER.length - 1}>+</button>
-          <button className="cal-arrow" onClick={() => zoom(-1)} title="Zoom in"  disabled={levelIdx <= 0}>−</button>
+          <button className="cal-arrow" onClick={() => zoom(1)}  title="Zoom out" disabled={levelIdx >= LEVEL_ORDER.length - 1}>↑</button>
+          <button className="cal-arrow" onClick={() => zoom(-1)} title="Zoom in"  disabled={levelIdx <= 0}>↓</button>
         </div>
       </div>
       {!collapsed && (

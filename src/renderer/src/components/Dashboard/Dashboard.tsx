@@ -103,34 +103,7 @@ export default function Dashboard() {
             {periods.length > 0 && ` · ${periods.length} ${viewScale} periods`}
           </div>
         </div>
-        <div style={styles.toolbarRight}>
-          {pastProjectedCount > 0 && (
-            <button
-              className="btn btn-sm"
-              style={{ background: 'var(--deficit-dim)', color: 'var(--deficit)', borderColor: 'var(--deficit)' }}
-              onClick={() => setShowPastProjected(true)}
-            >
-              ⚠ {pastProjectedCount} Past Projected
-            </button>
-          )}
-          <button className="btn btn-income btn-sm" onClick={() => setShowAddIncome(true)}>+ Income</button>
-          <button
-            className="btn btn-sm"
-            style={{ background: 'var(--expense-dim)', color: 'var(--expense)', borderColor: 'var(--expense)' }}
-            onClick={() => setShowAddExpense(true)}
-          >+ Expense</button>
-        </div>
       </div>
-
-      {/* Stat cards */}
-      {calculationResult && (
-        <div style={styles.statRow}>
-          <StatCard label="Current balance" value={todayPeriod?.endingLiquidBalance ?? calculationResult.initialLiquidBalance} color="var(--surplus)" />
-          <StatCard label="End-of-range balance" value={lastPeriod?.endingLiquidBalance ?? 0} color={lastPeriod && lastPeriod.endingLiquidBalance < 0 ? 'var(--deficit)' : 'var(--surplus)'} />
-          <StatCard label={`Income (${new Date().toLocaleDateString('en', { month: 'short' })})`} value={monthIncome} color="var(--income)" prefix="+" />
-          <StatCard label={`Expenses (${new Date().toLocaleDateString('en', { month: 'short' })})`} value={monthExpense} color="var(--expense)" prefix="−" />
-        </div>
-      )}
 
       {/* Toolbar — outside the two-column split so it spans full width */}
       <div style={styles.toolbar}>
@@ -181,31 +154,26 @@ export default function Dashboard() {
           </div>
         </div>
 
-      </div>
-
-      {/* Warnings strip */}
-      {warnings.length > 0 && (
-        <div style={styles.warningsStrip}>
-          {warnings.map((w, i) => (
-            <div
-              key={i}
-              style={{
-                ...styles.warningItem,
-                borderLeftColor: w.type === 'largeFutureObligation'
-                  ? 'var(--warning)'
-                  : 'var(--deficit)'
-              }}
+        {/* add income or expense buttons */}
+        <div style={styles.toolbarRight}>
+          {pastProjectedCount > 0 && (
+            <button
+              className="btn btn-sm"
+              style={{ background: 'var(--deficit-dim)', color: 'var(--deficit)', borderColor: 'var(--deficit)' }}
+              onClick={() => setShowPastProjected(true)}
             >
-              <span style={styles.warningIcon}>
-                {w.type === 'negativeCumulative' ? '⚠' : w.type === 'negativeBalance' ? '⛔' : '◈'}
-              </span>
-              <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                {w.description}
-              </span>
-            </div>
-          ))}
+              ⚠ {pastProjectedCount} Past Projected
+            </button>
+          )}
+          <button className="btn btn-income btn-sm" onClick={() => setShowAddIncome(true)}>+ Income</button>
+          <button
+            className="btn btn-sm"
+            style={{ background: 'var(--expense-dim)', color: 'var(--expense)', borderColor: 'var(--expense)' }}
+            onClick={() => setShowAddExpense(true)}
+          >+ Expense</button>
         </div>
-      )}
+
+      </div>
 
       {/* Two-column: scrolling chart+tables on left, sticky right rail */}
       <div className="dash-layout-v2">

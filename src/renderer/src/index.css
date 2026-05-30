@@ -81,6 +81,7 @@
 
   /* Sidebar */
   --sidebar-width: 200px;
+  --card-min-height: 100px;
 
   /* Scrollbar */
   scrollbar-width: thin;
@@ -999,6 +1000,7 @@ a:hover { text-decoration: underline; }
   display: flex;
   flex-direction: column;
   min-height: 0;
+  gap: 10px;
 }
 
 /* ── Rail cards ── */
@@ -1099,35 +1101,33 @@ a:hover { text-decoration: underline; }
 .info-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1px;
-  background: var(--border);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  gap: 8px;
   overflow: hidden;
-  margin-bottom: 1px;
+  margin: 0px 8px 0px 8px;
 }
 
 .info-tile {
   background: var(--bg-card);
-  padding: 10px 11px;
+  padding: 20px 11px;
+  border-radius: var(--radius);
+  min-height: var(--card-min-height);
 }
 
 .info-tile-lbl {
-  font-size: 10.5px;
+  font-size: 12px;
   color: var(--text-muted);
-  margin-bottom: 3px;
-  white-space: nowrap;
+  margin-bottom: 10px;
+  white-space: wrap;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .info-tile-val {
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 700;
   font-family: var(--font-mono);
   color: var(--text-primary);
   line-height: 1.2;
-  white-space: nowrap;
+  white-space: wrap;
 }
 
 .info-tile-sub {
@@ -1138,15 +1138,19 @@ a:hover { text-decoration: underline; }
 
 /* ── Events card ── */
 .info-events-card {
-  background: var(--bg-card);
   border-bottom: 1px solid var(--border);
+  gap: 8px;
 }
 
 .info-event {
+  background: var(--bg-card);
+  padding: 20px 14px;
+  margin: 0px 8px 8px 8px;
+  border-radius: var(--radius);
+  min-height: var(--card-min-height);
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 14px;
   border-bottom: 1px solid rgba(42,48,80,.4);
   font-size: 11.5px;
 }
@@ -1171,15 +1175,20 @@ a:hover { text-decoration: underline; }
 
 /* ── Calendar ── */
 .cal-card {
-  padding: 10px 12px;
+  padding: 10px 12px 30px;
   flex-shrink: 0;           /* never shrink */
   border-top: 1px solid var(--border);
+  /* Fixed total height — same regardless of scale */
+  height: 260px;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Fixed body height — sized for 6-row day grid (tallest scale).
    Month/year grids are shorter but the extra space keeps the widget stable. */
 .cal-body {
-  height: 185px;
+  flex: 1;          /* fill remaining space after the header */
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -1190,22 +1199,16 @@ a:hover { text-decoration: underline; }
   margin-bottom: 8px;
 }
 
-.cal-collapse {
-  appearance: none; border: none; background: none; cursor: pointer;
-  color: var(--text-muted); padding: 2px; border-radius: 3px; line-height: 1;
-}
-.cal-collapse:hover { color: var(--text-primary); background: var(--bg-hover); }
-
 .cal-title {
   flex: 1;
-  font-size: 12.5px;
+  font-size: 24px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--accent);
   display: flex;
   align-items: center;
   gap: 6px;
 }
-.cal-year { font-size: 11px; color: var(--text-muted); font-weight: 400; }
+.cal-year { font-size: 16px; color: var(--text-primary); font-weight: 400; }
 
 .cal-nav {
   display: flex;
@@ -1214,14 +1217,14 @@ a:hover { text-decoration: underline; }
 }
 .cal-today {
   appearance: none; border: none; background: none; cursor: pointer;
-  font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em;
-  color: var(--accent); padding: 3px 5px; border-radius: 3px; font-family: inherit;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+  color: var(--text-primary); padding: 3px 5px; border-radius: 3px; font-family: inherit;
 }
 .cal-today:hover { background: var(--accent-dim); }
 
 .cal-arrow {
   appearance: none; border: none; background: none; cursor: pointer;
-  color: var(--text-muted); padding: 3px; border-radius: 3px; line-height: 1;
+  color: var(--text-muted); padding: 6px; border-radius: 3px; line-height: 1;
   font-size: 12px;
 }
 .cal-arrow:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
@@ -1273,6 +1276,7 @@ a:hover { text-decoration: underline; }
 .cal-grid.cal-months, .cal-grid.cal-years {
   grid-template-columns: repeat(4, 1fr);
   gap: 2px;
+  height: 100%;
 }
 
 .cal-mcell {
