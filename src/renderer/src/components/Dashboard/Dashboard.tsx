@@ -69,6 +69,34 @@ export default function Dashboard() {
 
   return (
     <div style={styles.container}>
+      {/* Page header */}
+      <div style={styles.pageHeader}>
+        <div>
+          <h1 style={styles.pageTitle}>Dashboard</h1>
+          <div style={styles.pageSub}>
+            Cash flow projection
+            {periods.length > 0 && ` · ${periods.length} ${viewScale} periods`}
+          </div>
+        </div>
+        <div style={styles.toolbarRight}>
+          {pastProjectedCount > 0 && (
+            <button
+              className="btn btn-sm"
+              style={{ background: 'var(--deficit-dim)', color: 'var(--deficit)', borderColor: 'var(--deficit)' }}
+              onClick={() => setShowPastProjected(true)}
+            >
+              ⚠ {pastProjectedCount} Past Projected
+            </button>
+          )}
+          <button className="btn btn-income btn-sm" onClick={() => setShowAddIncome(true)}>+ Income</button>
+          <button
+            className="btn btn-sm"
+            style={{ background: 'var(--expense-dim)', color: 'var(--expense)', borderColor: 'var(--expense)' }}
+            onClick={() => setShowAddExpense(true)}
+          >+ Expense</button>
+        </div>
+      </div>
+
       {/* Toolbar — outside the two-column split so it spans full width */}
       <div style={styles.toolbar}>
         <div style={styles.toolbarLeft}>
@@ -118,27 +146,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div style={styles.toolbarRight}>
-          {pastProjectedCount > 0 && (
-            <button
-              className="btn btn-sm"
-              style={{ background: 'var(--deficit-dim)', color: 'var(--deficit)', borderColor: 'var(--deficit)' }}
-              onClick={() => setShowPastProjected(true)}
-            >
-              ⚠ {pastProjectedCount} Past Projected
-            </button>
-          )}
-          <button className="btn btn-income btn-sm" onClick={() => setShowAddIncome(true)}>
-            + Income
-          </button>
-          <button
-            className="btn btn-sm"
-            style={{ background: 'var(--expense-dim)', color: 'var(--expense)', borderColor: 'var(--expense)' }}
-            onClick={() => setShowAddExpense(true)}
-          >
-            + Expense
-          </button>
-        </div>
       </div>
 
       {/* Warnings strip */}
@@ -287,11 +294,33 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     background: 'var(--bg-base)'
   },
+  pageHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '14px 20px 10px',
+    borderBottom: '1px solid var(--border)',
+    background: 'var(--bg-panel)',
+    flexShrink: 0,
+    gap: '12px'
+  },
+  pageTitle: {
+    fontSize: '18px',
+    fontWeight: 700,
+    letterSpacing: '-0.02em',
+    margin: 0,
+    color: 'var(--text-primary)'
+  },
+  pageSub: {
+    fontSize: '12px',
+    color: 'var(--text-muted)',
+    marginTop: '2px'
+  },
   toolbar: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: '10px 16px',
+    padding: '8px 16px',
     borderBottom: '1px solid var(--border)',
     background: 'var(--bg-panel)',
     gap: '12px',
