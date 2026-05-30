@@ -1,6 +1,6 @@
 // Dashboard right rail: account donut, key info tiles, adaptive calendar
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { format } from 'date-fns'
 import type { Account, PeriodSummary, ViewScale } from '../../shared/types'
 
@@ -285,9 +285,10 @@ interface CalendarProps {
   scrollRef: React.RefObject<HTMLDivElement | null>
   colWidth: number
   labelWidth: number
+  visibleRange: { startDate: string; endDate: string } | null
 }
 
-function CalendarNav({ periods, viewScale, onScaleChange, todayPeriodKey, scrollRef, colWidth, labelWidth }: CalendarProps) {
+function CalendarNav({ periods, viewScale, onScaleChange, todayPeriodKey, scrollRef, colWidth, labelWidth, visibleRange }: CalendarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const today = useMemo(() => new Date(), [])
 
@@ -307,16 +308,15 @@ function CalendarNav({ periods, viewScale, onScaleChange, todayPeriodKey, scroll
     return m
   }, [periods])
 
-  // Which period keys are currently visible? We look at today's period as center.
-  const visiblePeriodKeys = useMemo(() => {
-    const el = scrollRef.current
-    if (!el || !periods.length) return new Set<string>()
-    const sl = el.scrollLeft
-    const visW = el.clientWidth - labelWidth
-    const firstCol = Math.max(0, Math.floor(sl / colWidth))
-    const lastCol  = Math.min(periods.length - 1, firstCol + Math.ceil(visW / colWidth))
-    return new Set(periods.slice(firstCol, lastCol + 1).map(p => p.periodKey))
-  }, [periods, scrollRef, colWidth, labelWidth])
+  const vStart = visibleRange?.startDate ?? null
+  const vEnd   = visibleRange?.endDate   ?? null
+
+  // Auto-follow: when the visible start date crosses a month boundary, flip the calendar view
+  useEffect(() => {
+    if (!vStart) return
+    const d = new Date(vStart + 'T00:00:00')
+    setView({ y: d.getFullYear(), m: d.getMonth() })
+  }, [vStart])
 
   const calMode: CalMode =
     viewScale === 'day' || viewScale === 'week' ? 'days' :
@@ -374,6 +374,12 @@ function CalendarNav({ periods, viewScale, onScaleChange, todayPeriodKey, scroll
     const rows: Cell[][] = []
     for (let r = 0; r < cells.length / 7; r++) rows.push(cells.slice(r * 7, r * 7 + 7))
 
+    const inViewDay = (d: Date) => {
+      if (!vStart || !vEnd) return false
+      const iso = format(d, 'yyyy-MM-dd')
+      return iso >= vStart && iso <= vEnd
+    }
+
     return (
       <>
         <div className="cal-grid cal-grid days">
@@ -391,6 +397,14 @@ function CalendarNav({ periods, viewScale, onScaleChange, todayPeriodKey, scroll
                 if (c.out) cls.push('out')
                 if (iso === todayKey) cls.push('today')
                 if (!info) cls.push('disabled')
+                const iv     = !c.out && inViewDay(c.date)
+                const prevIv = ci > 0 && !row[ci - 1].out && inViewDay(row[ci - 1].date)
+                const nextIv = ci < 6 && !row[ci + 1].out && inViewDay(row[ci + 1].date)
+                if (iv) {
+                  cls.push('inview')
+                  if (!prevIv) cls.push('iv-l')
+                  if (!nextIv) cls.push('iv-r')
+                }
                 return (
                   <button
                     key={ci}
@@ -414,43 +428,69 @@ function CalendarNav({ periods, viewScale, onScaleChange, todayPeriodKey, scroll
   }
 
   // ── Month grid ──
-  const renderMonths = () => (
-    <div className="cal-grid cal-months">
-      {MON3.map((mn, m) => {
-        const firstPeriod = periods.find(p => {
-          const ps = new Date(p.periodStart + 'T00:00:00')
-          return ps.getFullYear() === view.y && ps.getMonth() === m
-        })
-        const isToday = view.y === today.getFullYear() && m === today.getMonth()
-        const cls = ['cal-mcell']
-        if (isToday) cls.push('today')
-        if (!firstPeriod) cls.push('disabled')
-        return (
-          <button
-            key={m}
-            className={cls.join(' ')}
-            onClick={() => firstPeriod && jumpToDate(firstPeriod.periodStart)}
-            disabled={!firstPeriod}
-          >
-            {mn}
-          </button>
-        )
-      })}
-    </div>
-  )
+  const renderMonths = () => {
+    const vStartOrd = vStart ? new Date(vStart + 'T00:00:00').getFullYear() * 12 + new Date(vStart + 'T00:00:00').getMonth() : null
+    const vEndOrd   = vEnd   ? new Date(vEnd   + 'T00:00:00').getFullYear() * 12 + new Date(vEnd   + 'T00:00:00').getMonth() : null
+    const inViewMon = (m: number) => vStartOrd != null && (view.y * 12 + m) >= vStartOrd && (view.y * 12 + m) <= vEndOrd!
+
+    return (
+      <div className="cal-grid cal-months">
+        {MON3.map((mn, m) => {
+          const firstPeriod = periods.find(p => {
+            const ps = new Date(p.periodStart + 'T00:00:00')
+            return ps.getFullYear() === view.y && ps.getMonth() === m
+          })
+          const isToday = view.y === today.getFullYear() && m === today.getMonth()
+          const cls = ['cal-mcell']
+          if (isToday) cls.push('today')
+          if (!firstPeriod) cls.push('disabled')
+          const iv     = inViewMon(m)
+          const prevIv = m > 0  && inViewMon(m - 1)
+          const nextIv = m < 11 && inViewMon(m + 1)
+          if (iv) {
+            cls.push('inview')
+            if (!prevIv || m % 4 === 0)  cls.push('iv-l')
+            if (!nextIv || m % 4 === 3)  cls.push('iv-r')
+          }
+          return (
+            <button
+              key={m}
+              className={cls.join(' ')}
+              onClick={() => firstPeriod && jumpToDate(firstPeriod.periodStart)}
+              disabled={!firstPeriod}
+            >
+              {mn}
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
 
   // ── Year grid ──
   const renderYears = () => {
-    const base  = view.y - view.y % 4 - 4
-    const years = Array.from({ length: 12 }, (_, i) => base + i)
+    const base    = view.y - view.y % 4 - 4
+    const years   = Array.from({ length: 12 }, (_, i) => base + i)
+    const vStartY = vStart ? +vStart.slice(0, 4) : null
+    const vEndY   = vEnd   ? +vEnd.slice(0, 4)   : null
+    const inViewYr = (y: number) => vStartY != null && y >= vStartY && y <= vEndY!
+
     return (
       <div className="cal-grid cal-years">
-        {years.map(y => {
+        {years.map((y, yi) => {
           const firstPeriod = periods.find(p => p.periodStart.startsWith(String(y)))
           const isToday = y === today.getFullYear()
           const cls = ['cal-mcell', 'year']
           if (isToday) cls.push('today')
           if (!firstPeriod) cls.push('disabled')
+          const iv     = inViewYr(y)
+          const prevIv = yi > 0  && inViewYr(years[yi - 1])
+          const nextIv = yi < 11 && inViewYr(years[yi + 1])
+          if (iv) {
+            cls.push('inview')
+            if (!prevIv || yi % 4 === 0) cls.push('iv-l')
+            if (!nextIv || yi % 4 === 3) cls.push('iv-r')
+          }
           return (
             <button
               key={y}
@@ -511,11 +551,12 @@ interface RightRailProps {
   scrollRef: React.RefObject<HTMLDivElement | null>
   colWidth: number
   labelWidth: number
+  visibleRange: { startDate: string; endDate: string } | null
 }
 
 export default function RightRail({
   accounts, periods, currency, viewScale, onScaleChange, todayPeriodKey,
-  scrollRef, colWidth, labelWidth
+  scrollRef, colWidth, labelWidth, visibleRange
 }: RightRailProps) {
   return (
     <aside className="dash-rail-v2">
@@ -541,6 +582,7 @@ export default function RightRail({
         scrollRef={scrollRef}
         colWidth={colWidth}
         labelWidth={labelWidth}
+        visibleRange={visibleRange}
       />
     </aside>
   )
