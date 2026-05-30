@@ -988,9 +988,17 @@ a:hover { text-decoration: underline; }
   background: var(--bg-panel);
   display: flex;
   flex-direction: column;
+  overflow: hidden;  /* rail itself does not scroll */
+}
+
+/* Scrollable section above the pinned calendar */
+.rail-scroll-top {
+  flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  gap: 1px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 /* ── Rail cards ── */
@@ -1164,9 +1172,16 @@ a:hover { text-decoration: underline; }
 /* ── Calendar ── */
 .cal-card {
   padding: 10px 12px;
-  flex: 1;
+  flex-shrink: 0;           /* never shrink */
+  border-top: 1px solid var(--border);
 }
-.cal-card.collapsed { flex: none; }
+
+/* Fixed body height — sized for 6-row day grid (tallest scale).
+   Month/year grids are shorter but the extra space keeps the widget stable. */
+.cal-body {
+  height: 185px;
+  overflow: hidden;
+}
 
 .cal-hd {
   display: flex;

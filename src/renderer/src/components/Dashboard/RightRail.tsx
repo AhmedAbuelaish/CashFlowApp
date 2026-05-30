@@ -519,15 +519,20 @@ export default function RightRail({
 }: RightRailProps) {
   return (
     <aside className="dash-rail-v2">
-      {accounts.length > 0 && (
-        <AccountDonut accounts={accounts} currency={currency} />
-      )}
-      {periods.length > 0 && (
-        <>
-          <InfoTiles periods={periods} currency={currency} />
-          <UpcomingEvents periods={periods} currency={currency} />
-        </>
-      )}
+      {/* Scrollable top section */}
+      <div className="rail-scroll-top">
+        {accounts.length > 0 && (
+          <AccountDonut accounts={accounts} currency={currency} />
+        )}
+        {periods.length > 0 && (
+          <>
+            <InfoTiles periods={periods} currency={currency} />
+            <UpcomingEvents periods={periods} currency={currency} />
+          </>
+        )}
+      </div>
+
+      {/* Calendar — always pinned to the bottom, fixed height */}
       <CalendarNav
         periods={periods}
         viewScale={viewScale}
