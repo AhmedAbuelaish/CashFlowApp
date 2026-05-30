@@ -1,47 +1,72 @@
 // ============================================================
-// CashFlow Planner — App Shell
-// Includes sidebar nav + notification bell with dismissable popover
+// CashFlow Planner — App Shell (v2)
+// Grid layout: 36px top bar + 220px sidebar + fluid main
 // ============================================================
 
 import { useState, useRef, useEffect } from 'react'
 import { useAppStore } from '../../store/appStore'
 import type { AppPage, AppNotification } from '../../shared/types'
 
-const NAV_ITEMS: { page: AppPage; icon: string; label: string }[] = [
-  { page: 'dashboard',  icon: '◉', label: 'Dashboard' },
-  { page: 'lineItems',  icon: '≡', label: 'Line Items' },
-  { page: 'accounts',   icon: '⬡', label: 'Accounts' },
-  { page: 'categories', icon: '🏷', label: 'Categories' },
-  { page: 'reports',    icon: '📋', label: 'Reports' },
-  { page: 'settings',  icon: '⚙', label: 'Settings' }
+interface NavGroup {
+  label: string
+  items: { page: AppPage; icon: string; label: string; disabled?: boolean }[]
+}
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: 'Plan',
+    items: [
+      { page: 'dashboard', icon: '◉', label: 'Dashboard' },
+      { page: 'lineItems', icon: '≡',  label: 'Line Items' },
+    ]
+  },
+  {
+    label: 'Data',
+    items: [
+      { page: 'accounts',   icon: '⬡', label: 'Accounts' },
+      { page: 'categories', icon: '🏷', label: 'Categories' },
+    ]
+  },
+  {
+    label: 'Output',
+    items: [
+      { page: 'reports',  icon: '📋', label: 'Reports' },
+      { page: 'settings', icon: '⚙',  label: 'Settings' },
+    ]
+  }
 ]
 
-// Derive AppNotification[] from CashFlowWarning[] for display
+function warningTitle(type: AppNotification['type']): string {
+  if (type === 'negativeCumulative')    return 'Cumulative deficit'
+  if (type === 'negativeBalance')       return 'Negative liquid balance'
+  if (type === 'largeFutureObligation') return 'Large future outflow'
+  return 'Alert'
+}
+
 function warningIcon(type: AppNotification['type']): string {
-  if (type === 'negativeCumulative') return '📉'
-  if (type === 'negativeBalance')    return '⚠️'
+  if (type === 'negativeCumulative')    return '📉'
+  if (type === 'negativeBalance')       return '⚠️'
   if (type === 'largeFutureObligation') return '💸'
   return '🔔'
 }
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const currentPage            = useAppStore(s => s.currentPage)
-  const currentFile            = useAppStore(s => s.currentFile)
-  const currentFilePath        = useAppStore(s => s.currentFilePath)
-  const saveStatus             = useAppStore(s => s.saveStatus)
-  const lastSavedAt            = useAppStore(s => s.lastSavedAt)
-  const hasUnsavedChanges      = useAppStore(s => s.hasUnsavedChanges)
-  const calcResult             = useAppStore(s => s.calculationResult)
-  const dismissedIds           = useAppStore(s => s.dismissedNotificationIds)
-  const setCurrentPage         = useAppStore(s => s.setCurrentPage)
-  const saveCurrentFile        = useAppStore(s => s.saveCurrentFile)
-  const dismissNotification    = useAppStore(s => s.dismissNotification)
-  const clearAllNotifications  = useAppStore(s => s.clearAllNotifications)
+  const currentPage           = useAppStore(s => s.currentPage)
+  const currentFile           = useAppStore(s => s.currentFile)
+  const currentFilePath       = useAppStore(s => s.currentFilePath)
+  const saveStatus            = useAppStore(s => s.saveStatus)
+  const lastSavedAt           = useAppStore(s => s.lastSavedAt)
+  const hasUnsavedChanges     = useAppStore(s => s.hasUnsavedChanges)
+  const calcResult            = useAppStore(s => s.calculationResult)
+  const dismissedIds          = useAppStore(s => s.dismissedNotificationIds)
+  const setCurrentPage        = useAppStore(s => s.setCurrentPage)
+  const saveCurrentFile       = useAppStore(s => s.saveCurrentFile)
+  const dismissNotification   = useAppStore(s => s.dismissNotification)
+  const clearAllNotifications = useAppStore(s => s.clearAllNotifications)
 
   const [notifOpen, setNotifOpen] = useState(false)
   const bellRef = useRef<HTMLDivElement>(null)
 
-  // Close popover when clicking outside
   useEffect(() => {
     if (!notifOpen) return
     function handler(e: MouseEvent) {
@@ -53,18 +78,26 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener('mousedown', handler)
   }, [notifOpen])
 
-  // Build notification list from calculation warnings
   const allNotifications: AppNotification[] = (calcResult?.warnings ?? []).map(w => ({
     id: `${w.type}-${w.periodKey}`,
     type: w.type,
-    title: w.type === 'negativeCumulative'    ? 'Cumulative deficit'
-         : w.type === 'negativeBalance'       ? 'Negative liquid balance'
-         : 'Large future outflow',
+    title: warningTitle(w.type),
     description: w.description
   }))
-
   const activeNotifications = allNotifications.filter(n => !dismissedIds.includes(n.id))
   const count = activeNotifications.length
+
+  const fileName = currentFile?.fileMetadata.name ?? 'Untitled'
+  const shortPath = currentFilePath ? currentFilePath.split(/[/\\]/).pop() ?? '' : ''
+  const currency  = currentFile?.fileMetadata.currency ?? 'USD'
+
+  // Compute account totals for sidebar footer
+  const accounts = currentFile?.accounts ?? []
+  const liquidTotal = accounts.reduce((s, a) => {
+    const base = a.liquidity === 'liquid' ? (a.balance ?? 0) : 0
+    const assetLiquid = (a.assets ?? []).filter(x => x.liquidity === 'liquid').reduce((t, x) => t + (x.currentValue ?? 0), 0)
+    return s + base + assetLiquid
+  }, 0)
 
   const statusLabel = (() => {
     switch (saveStatus) {
@@ -75,126 +108,146 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     }
   })()
 
-  const fileName = currentFile?.fileMetadata.name ?? 'Untitled'
-  const filePath = currentFilePath ? currentFilePath.split(/[/\\]/).pop() : ''
+  const fmt = (n: number) => {
+    const abs = Math.abs(n)
+    if (abs >= 1_000_000) return `$${(abs / 1_000_000).toFixed(1)}M`
+    if (abs >= 1_000)     return `$${(abs / 1_000).toFixed(1)}k`
+    return `$${abs.toFixed(0)}`
+  }
 
   return (
-    <div className="app-layout">
-      {/* Sidebar */}
-      <aside className="sidebar">
-        <div className="sidebar-logo">
-          <h1>{fileName}</h1>
-          {filePath && <p title={currentFilePath ?? ''}>{filePath}</p>}
+    <div className="app-layout-v2">
+      {/* ── Top status bar ── */}
+      <header className="top-bar-v2">
+        <div className="top-bar-left">
+          <div className="top-bar-brand">
+            <span className="top-bar-dot" />
+            <span>CashFlow Planner</span>
+          </div>
+          <div className="top-bar-sep" />
+          <div className="top-bar-file">
+            <span>📁</span>
+            <b>{fileName}</b>
+            {shortPath && shortPath !== fileName && (
+              <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>— {shortPath}</span>
+            )}
+          </div>
+          <div className="save-indicator" data-status={saveStatus}>
+            <span className="save-dot-v2" />
+            <span>{statusLabel}</span>
+          </div>
         </div>
 
-        <nav className="sidebar-nav">
-          {NAV_ITEMS.map(item => (
-            <button
-              key={item.page}
-              className={`nav-item ${currentPage === item.page ? 'active' : ''}`}
-              onClick={() => setCurrentPage(item.page)}
-            >
-              <span className="nav-icon">{item.icon}</span>
-              {item.label}
-            </button>
-          ))}
-        </nav>
+        <div className="top-bar-spacer" />
 
-        <div className="sidebar-footer">
-          <div className="save-status">
-            <div className={`save-dot ${saveStatus}`} />
-            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {statusLabel}
-            </span>
-          </div>
+        <div className="top-bar-right">
           <button
-            className="btn btn-secondary btn-sm"
-            style={{ width: '100%', marginTop: '8px' }}
+            className="top-bar-btn"
             onClick={saveCurrentFile}
             disabled={!hasUnsavedChanges}
+            title="Save (Ctrl+S)"
           >
-            Save
+            💾 Save
           </button>
-        </div>
-      </aside>
-
-      {/* Main */}
-      <main className="main-content">
-        {/* Top bar with notification bell */}
-        <div style={{ position: 'relative', display: 'flex', justifyContent: 'flex-end', padding: '0.5rem 1rem', borderBottom: '1px solid var(--border)', background: 'var(--bg-panel)' }}>
+          <div className="top-bar-sep" />
           <div ref={bellRef} style={{ position: 'relative' }}>
             <button
+              className="top-bar-btn"
               onClick={() => setNotifOpen(o => !o)}
-              title={count > 0 ? `${count} notification${count > 1 ? 's' : ''}` : 'No notifications'}
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                padding: '0.3rem 0.5rem', borderRadius: 6, fontSize: '1.1rem',
-                color: count > 0 ? 'var(--color-warning)' : 'var(--text-muted)',
-                position: 'relative', lineHeight: 1
-              }}
+              title={count > 0 ? `${count} alert${count > 1 ? 's' : ''}` : 'No alerts'}
             >
               🔔
-              {count > 0 && (
-                <span style={{
-                  position: 'absolute', top: -2, right: -2,
-                  background: 'var(--color-expense)', color: '#fff',
-                  borderRadius: '50%', fontSize: '0.62rem', fontWeight: 700,
-                  width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  lineHeight: 1
-                }}>
-                  {count > 9 ? '9+' : count}
-                </span>
-              )}
+              {count > 0 && <span className="top-bar-badge">{count > 9 ? '9+' : count}</span>}
             </button>
 
-            {/* Notification popover */}
             {notifOpen && (
-              <div style={{
-                position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 200,
-                background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 8,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.4)', width: 340, maxHeight: 420, overflowY: 'auto'
-              }}>
-                {/* Popover header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.65rem 0.85rem', borderBottom: '1px solid var(--border)' }}>
-                  <span style={{ fontWeight: 600, fontSize: '0.88rem' }}>Notifications</span>
+              <div className="notif-popover">
+                <div className="notif-header">
+                  <b>Alerts</b>
                   {count > 0 && (
                     <button
+                      className="btn btn-ghost btn-sm"
                       onClick={() => { clearAllNotifications(); setNotifOpen(false) }}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.78rem', color: 'var(--text-muted)' }}
                     >
-                      Clear all
+                      Dismiss all
                     </button>
                   )}
                 </div>
-
-                {/* Notification items */}
-                {activeNotifications.length === 0 ? (
-                  <div style={{ padding: '1.25rem 0.85rem', color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center' }}>
-                    No active notifications
-                  </div>
-                ) : (
-                  activeNotifications.map(n => (
-                    <div key={n.id} style={{ display: 'flex', gap: '0.65rem', padding: '0.65rem 0.85rem', borderBottom: '1px solid var(--border)', alignItems: 'flex-start' }}>
-                      <span style={{ fontSize: '1rem', flexShrink: 0, marginTop: 1 }}>{warningIcon(n.type)}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: '0.82rem', marginBottom: 2 }}>{n.title}</div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>{n.description}</div>
+                <div className="notif-list">
+                  {activeNotifications.length === 0 ? (
+                    <div className="notif-empty">All clear — no projected risks.</div>
+                  ) : (
+                    activeNotifications.map(n => (
+                      <div key={n.id} className="notif-item">
+                        <span className="notif-icon">{warningIcon(n.type)}</span>
+                        <div className="notif-meta">
+                          <b>{n.title}</b>
+                          <span>{n.description}</span>
+                        </div>
+                        <button
+                          className="notif-close"
+                          onClick={() => dismissNotification(n.id)}
+                          title="Dismiss"
+                        >✕</button>
                       </div>
-                      <button
-                        onClick={() => dismissNotification(n.id)}
-                        title="Dismiss"
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', flexShrink: 0, padding: '0 2px', lineHeight: 1 }}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))
-                )}
+                    ))
+                  )}
+                </div>
               </div>
             )}
           </div>
         </div>
+      </header>
 
+      {/* ── Sidebar ── */}
+      <aside className="sidebar-v2">
+        <nav className="side-nav-v2">
+          {NAV_GROUPS.map(group => (
+            <div key={group.label}>
+              <div className="side-section-label">{group.label}</div>
+              {group.items.map(item => (
+                <button
+                  key={item.page}
+                  className={`side-item-v2 ${currentPage === item.page ? 'active' : ''} ${item.disabled ? 'disabled' : ''}`}
+                  onClick={() => !item.disabled && setCurrentPage(item.page)}
+                  disabled={item.disabled}
+                >
+                  <span className="side-icon-v2">{item.icon}</span>
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+
+        <div className="side-footer-v2">
+          {currentFile && (
+            <>
+              <div className="side-foot-row-v2">
+                <span>File</span>
+                <span className="side-foot-val">{shortPath || fileName}</span>
+              </div>
+              <div className="side-foot-row-v2">
+                <span>Currency</span>
+                <b>{currency}</b>
+              </div>
+              {accounts.length > 0 && (
+                <div className="side-foot-row-v2">
+                  <span>Liquid</span>
+                  <b style={{ color: 'var(--income)' }}>{fmt(liquidTotal)}</b>
+                </div>
+              )}
+              <div className="side-foot-row-v2">
+                <span>Initial balance</span>
+                <b>{fmt(currentFile.fileMetadata.initialLiquidBalance)}</b>
+              </div>
+            </>
+          )}
+        </div>
+      </aside>
+
+      {/* ── Main content ── */}
+      <main className="main-v2">
         {children}
       </main>
     </div>

@@ -6,6 +6,7 @@ import CashFlowTable from './CashFlowTable'
 import AccountsTable from './AccountsTable'
 import PastProjectedReview from './PastProjectedReview'
 import LineItemForm from '../LineItems/LineItemForm'
+import RightRail from './RightRail'
 import type { ViewScale, CumulativeChartMode } from '../../shared/types'
 
 const COL_WIDTH   = 110
@@ -68,7 +69,7 @@ export default function Dashboard() {
 
   return (
     <div style={styles.container}>
-      {/* Toolbar */}
+      {/* Toolbar — outside the two-column split so it spans full width */}
       <div style={styles.toolbar}>
         <div style={styles.toolbarLeft}>
           {/* Scale */}
@@ -164,80 +165,98 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Shared horizontal scroll container — chart and all tables scroll together */}
-      <div ref={scrollRef} style={styles.scrollContainer}>
-        <div style={{ width: totalWidth, minWidth: '100%', display: 'flex', flexDirection: 'column', background: 'var(--border)', gap: '1px' }}>
+      {/* Two-column: scrolling chart+tables on left, sticky right rail */}
+      <div className="dash-layout-v2">
+        <div className="dash-main-v2">
+          {/* Shared horizontal scroll container — chart and all tables scroll together */}
+          <div ref={scrollRef} style={styles.scrollContainer}>
+            <div style={{ width: totalWidth, minWidth: '100%', display: 'flex', flexDirection: 'column', background: 'var(--border)', gap: '1px' }}>
 
-          {/* Chart panel */}
-          {chartVisible && (
-            <div style={{
-              ...styles.panel,
-              height: cumulativeChartMode === 'separateChart' ? 460 : 300,
-              flexShrink: 0
-            }}>
-              <div className="panel-header">
-                <span className="panel-title">Cash Flow Chart</span>
-              </div>
-              <div style={{ flex: 1, overflow: 'hidden', padding: '8px' }}>
-                {calculationResult && calculationResult.periods.length > 0 ? (
-                  <CashFlowChart
-                    result={calculationResult}
-                    cumulativeMode={cumulativeChartMode}
-                    currency={currency}
-                    accounts={currentFile?.accounts ?? []}
-                  />
-                ) : (
-                  <div className="empty-state" style={{ height: '100%' }}>
-                    <div className="empty-state-icon">📊</div>
-                    <div className="empty-state-title">No data yet</div>
-                    <div className="empty-state-desc">
-                      Add income and expense line items to see your cash flow chart.
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Table panel */}
-          {tableVisible && (
-            <div style={{ ...styles.panel, flex: 'none' }}>
-              <div className="panel-header">
-                <span className="panel-title">Cash Flow Table</span>
-              </div>
-              {calculationResult && calculationResult.periods.length > 0 ? (
-                <CashFlowTable
-                  result={calculationResult}
-                  currency={currency}
-                  todayPeriodKey={todayPeriodKey}
-                />
-              ) : (
-                <div className="empty-state" style={{ height: '200px' }}>
-                  <div className="empty-state-title">No periods to display</div>
-                  <div className="empty-state-desc">
-                    Add income or expenses, then adjust the date range.
-                  </div>
-                </div>
-              )}
-
-              {/* Accounts section */}
-              {currentFile && (currentFile.accounts ?? []).length > 0 && calculationResult && (
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: '4px' }}>
+              {/* Chart panel */}
+              {chartVisible && (
+                <div style={{
+                  ...styles.panel,
+                  height: cumulativeChartMode === 'separateChart' ? 460 : 300,
+                  flexShrink: 0
+                }}>
                   <div className="panel-header">
-                    <span className="panel-title">Account Balances</span>
+                    <span className="panel-title">Cash Flow Chart</span>
                   </div>
-                  <AccountsTable
-                    accounts={currentFile.accounts}
-                    periods={calculationResult.periods}
-                    currency={currency}
-                    todayPeriodKey={todayPeriodKey}
-                  />
+                  <div style={{ flex: 1, overflow: 'hidden', padding: '8px' }}>
+                    {calculationResult && calculationResult.periods.length > 0 ? (
+                      <CashFlowChart
+                        result={calculationResult}
+                        cumulativeMode={cumulativeChartMode}
+                        currency={currency}
+                        accounts={currentFile?.accounts ?? []}
+                      />
+                    ) : (
+                      <div className="empty-state" style={{ height: '100%' }}>
+                        <div className="empty-state-icon">📊</div>
+                        <div className="empty-state-title">No data yet</div>
+                        <div className="empty-state-desc">
+                          Add income and expense line items to see your cash flow chart.
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-            </div>
-          )}
 
+              {/* Table panel */}
+              {tableVisible && (
+                <div style={{ ...styles.panel, flex: 'none' }}>
+                  <div className="panel-header">
+                    <span className="panel-title">Cash Flow Table</span>
+                  </div>
+                  {calculationResult && calculationResult.periods.length > 0 ? (
+                    <CashFlowTable
+                      result={calculationResult}
+                      currency={currency}
+                      todayPeriodKey={todayPeriodKey}
+                    />
+                  ) : (
+                    <div className="empty-state" style={{ height: '200px' }}>
+                      <div className="empty-state-title">No periods to display</div>
+                      <div className="empty-state-desc">
+                        Add income or expenses, then adjust the date range.
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Accounts section */}
+                  {currentFile && (currentFile.accounts ?? []).length > 0 && calculationResult && (
+                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: '4px' }}>
+                      <div className="panel-header">
+                        <span className="panel-title">Account Balances</span>
+                      </div>
+                      <AccountsTable
+                        accounts={currentFile.accounts}
+                        periods={calculationResult.periods}
+                        currency={currency}
+                        todayPeriodKey={todayPeriodKey}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+            </div>
+          </div>
         </div>
+
+        {/* Right rail */}
+        <RightRail
+          accounts={currentFile?.accounts ?? []}
+          periods={periods}
+          currency={currency}
+          viewScale={viewScale}
+          onScaleChange={setViewScale}
+          todayPeriodKey={todayPeriodKey}
+          scrollRef={scrollRef}
+          colWidth={COL_WIDTH}
+          labelWidth={LABEL_WIDTH}
+        />
       </div>
 
       {/* Modals */}
