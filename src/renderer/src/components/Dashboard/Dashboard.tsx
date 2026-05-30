@@ -6,12 +6,29 @@ import CashFlowTable from './CashFlowTable'
 import AccountsTable from './AccountsTable'
 import PastProjectedReview from './PastProjectedReview'
 import LineItemForm from '../LineItems/LineItemForm'
+import RightRail from './RightRail'
 import type { ViewScale, CumulativeChartMode } from '../../shared/types'
 
 const COL_WIDTH   = 110
 const LABEL_WIDTH = 200
 
 type PanelState = 'both' | 'chartOnly' | 'tableOnly'
+
+function StatCard({ label, value, color, prefix }: { label: string; value: number; color: string; prefix?: string }) {
+  const abs = Math.abs(value)
+  const fmt = abs >= 1_000_000 ? `${(abs / 1_000_000).toFixed(2)}M`
+            : abs >= 1_000     ? `${(abs / 1_000).toFixed(1)}k`
+            : abs.toFixed(0)
+  return (
+    <div style={{ flex: 1, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', minWidth: 0 }}>
+      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+      <div style={{ fontSize: '18px', fontWeight: 700, fontFamily: 'var(--font-mono)', color, lineHeight: 1.2 }}>
+        {prefix && <span style={{ fontSize: '13px', marginRight: '1px', opacity: 0.8 }}>{prefix}</span>}
+        <span style={{ fontSize: '12px', opacity: 0.6 }}>$</span>{fmt}
+      </div>
+    </div>
+  )
+}
 
 export default function Dashboard() {
   const viewScale = useAppStore(s => s.viewScale)
@@ -31,6 +48,15 @@ export default function Dashboard() {
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const todayISO = useMemo(() => format(new Date(), 'yyyy-MM-dd'), [])
+
+  // Stat card values
+  const todayPeriod  = useMemo(() => calculationResult?.periods.find(p => p.periodStart <= todayISO && todayISO <= p.periodEnd), [calculationResult?.periods, todayISO])
+  const lastPeriod   = calculationResult?.periods[calculationResult.periods.length - 1]
+  const nowMonth     = new Date().getMonth()
+  const nowYear      = new Date().getFullYear()
+  const monthInISO   = `${nowYear}-${String(nowMonth + 1).padStart(2, '0')}`
+  const monthIncome  = useMemo(() => (calculationResult?.periods ?? []).filter(p => p.periodStart.startsWith(monthInISO)).reduce((s, p) => s + p.cashFlowIn, 0), [calculationResult?.periods, monthInISO])
+  const monthExpense = useMemo(() => (calculationResult?.periods ?? []).filter(p => p.periodStart.startsWith(monthInISO)).reduce((s, p) => s + p.cashFlowOut, 0), [calculationResult?.periods, monthInISO])
 
   const periods = calculationResult?.periods ?? []
   const totalWidth = Math.max(600, LABEL_WIDTH + periods.length * COL_WIDTH)
@@ -68,7 +94,45 @@ export default function Dashboard() {
 
   return (
     <div style={styles.container}>
-      {/* Toolbar */}
+      {/* Page header */}
+      <div style={styles.pageHeader}>
+        <div>
+          <h1 style={styles.pageTitle}>Dashboard</h1>
+          <div style={styles.pageSub}>
+            Cash flow projection
+            {periods.length > 0 && ` · ${periods.length} ${viewScale} periods`}
+          </div>
+        </div>
+        <div style={styles.toolbarRight}>
+          {pastProjectedCount > 0 && (
+            <button
+              className="btn btn-sm"
+              style={{ background: 'var(--deficit-dim)', color: 'var(--deficit)', borderColor: 'var(--deficit)' }}
+              onClick={() => setShowPastProjected(true)}
+            >
+              ⚠ {pastProjectedCount} Past Projected
+            </button>
+          )}
+          <button className="btn btn-income btn-sm" onClick={() => setShowAddIncome(true)}>+ Income</button>
+          <button
+            className="btn btn-sm"
+            style={{ background: 'var(--expense-dim)', color: 'var(--expense)', borderColor: 'var(--expense)' }}
+            onClick={() => setShowAddExpense(true)}
+          >+ Expense</button>
+        </div>
+      </div>
+
+      {/* Stat cards */}
+      {calculationResult && (
+        <div style={styles.statRow}>
+          <StatCard label="Current balance" value={todayPeriod?.endingLiquidBalance ?? calculationResult.initialLiquidBalance} color="var(--surplus)" />
+          <StatCard label="End-of-range balance" value={lastPeriod?.endingLiquidBalance ?? 0} color={lastPeriod && lastPeriod.endingLiquidBalance < 0 ? 'var(--deficit)' : 'var(--surplus)'} />
+          <StatCard label={`Income (${new Date().toLocaleDateString('en', { month: 'short' })})`} value={monthIncome} color="var(--income)" prefix="+" />
+          <StatCard label={`Expenses (${new Date().toLocaleDateString('en', { month: 'short' })})`} value={monthExpense} color="var(--expense)" prefix="−" />
+        </div>
+      )}
+
+      {/* Toolbar — outside the two-column split so it spans full width */}
       <div style={styles.toolbar}>
         <div style={styles.toolbarLeft}>
           {/* Scale */}
@@ -117,27 +181,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div style={styles.toolbarRight}>
-          {pastProjectedCount > 0 && (
-            <button
-              className="btn btn-sm"
-              style={{ background: 'var(--deficit-dim)', color: 'var(--deficit)', borderColor: 'var(--deficit)' }}
-              onClick={() => setShowPastProjected(true)}
-            >
-              ⚠ {pastProjectedCount} Past Projected
-            </button>
-          )}
-          <button className="btn btn-income btn-sm" onClick={() => setShowAddIncome(true)}>
-            + Income
-          </button>
-          <button
-            className="btn btn-sm"
-            style={{ background: 'var(--expense-dim)', color: 'var(--expense)', borderColor: 'var(--expense)' }}
-            onClick={() => setShowAddExpense(true)}
-          >
-            + Expense
-          </button>
-        </div>
       </div>
 
       {/* Warnings strip */}
@@ -164,80 +207,98 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Shared horizontal scroll container — chart and all tables scroll together */}
-      <div ref={scrollRef} style={styles.scrollContainer}>
-        <div style={{ width: totalWidth, minWidth: '100%', display: 'flex', flexDirection: 'column', background: 'var(--border)', gap: '1px' }}>
+      {/* Two-column: scrolling chart+tables on left, sticky right rail */}
+      <div className="dash-layout-v2">
+        <div className="dash-main-v2">
+          {/* Shared horizontal scroll container — chart and all tables scroll together */}
+          <div ref={scrollRef} style={styles.scrollContainer}>
+            <div style={{ width: totalWidth, minWidth: '100%', display: 'flex', flexDirection: 'column', background: 'var(--border)', gap: '1px' }}>
 
-          {/* Chart panel */}
-          {chartVisible && (
-            <div style={{
-              ...styles.panel,
-              height: cumulativeChartMode === 'separateChart' ? 460 : 300,
-              flexShrink: 0
-            }}>
-              <div className="panel-header">
-                <span className="panel-title">Cash Flow Chart</span>
-              </div>
-              <div style={{ flex: 1, overflow: 'hidden', padding: '8px' }}>
-                {calculationResult && calculationResult.periods.length > 0 ? (
-                  <CashFlowChart
-                    result={calculationResult}
-                    cumulativeMode={cumulativeChartMode}
-                    currency={currency}
-                    accounts={currentFile?.accounts ?? []}
-                  />
-                ) : (
-                  <div className="empty-state" style={{ height: '100%' }}>
-                    <div className="empty-state-icon">📊</div>
-                    <div className="empty-state-title">No data yet</div>
-                    <div className="empty-state-desc">
-                      Add income and expense line items to see your cash flow chart.
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Table panel */}
-          {tableVisible && (
-            <div style={{ ...styles.panel, flex: 'none' }}>
-              <div className="panel-header">
-                <span className="panel-title">Cash Flow Table</span>
-              </div>
-              {calculationResult && calculationResult.periods.length > 0 ? (
-                <CashFlowTable
-                  result={calculationResult}
-                  currency={currency}
-                  todayPeriodKey={todayPeriodKey}
-                />
-              ) : (
-                <div className="empty-state" style={{ height: '200px' }}>
-                  <div className="empty-state-title">No periods to display</div>
-                  <div className="empty-state-desc">
-                    Add income or expenses, then adjust the date range.
-                  </div>
-                </div>
-              )}
-
-              {/* Accounts section */}
-              {currentFile && (currentFile.accounts ?? []).length > 0 && calculationResult && (
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: '4px' }}>
+              {/* Chart panel */}
+              {chartVisible && (
+                <div style={{
+                  ...styles.panel,
+                  height: cumulativeChartMode === 'separateChart' ? 460 : 300,
+                  flexShrink: 0
+                }}>
                   <div className="panel-header">
-                    <span className="panel-title">Account Balances</span>
+                    <span className="panel-title">Cash Flow Chart</span>
                   </div>
-                  <AccountsTable
-                    accounts={currentFile.accounts}
-                    periods={calculationResult.periods}
-                    currency={currency}
-                    todayPeriodKey={todayPeriodKey}
-                  />
+                  <div style={{ flex: 1, overflow: 'hidden', padding: '8px' }}>
+                    {calculationResult && calculationResult.periods.length > 0 ? (
+                      <CashFlowChart
+                        result={calculationResult}
+                        cumulativeMode={cumulativeChartMode}
+                        currency={currency}
+                        accounts={currentFile?.accounts ?? []}
+                      />
+                    ) : (
+                      <div className="empty-state" style={{ height: '100%' }}>
+                        <div className="empty-state-icon">📊</div>
+                        <div className="empty-state-title">No data yet</div>
+                        <div className="empty-state-desc">
+                          Add income and expense line items to see your cash flow chart.
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-            </div>
-          )}
 
+              {/* Table panel */}
+              {tableVisible && (
+                <div style={{ ...styles.panel, flex: 'none' }}>
+                  <div className="panel-header">
+                    <span className="panel-title">Cash Flow Table</span>
+                  </div>
+                  {calculationResult && calculationResult.periods.length > 0 ? (
+                    <CashFlowTable
+                      result={calculationResult}
+                      currency={currency}
+                      todayPeriodKey={todayPeriodKey}
+                    />
+                  ) : (
+                    <div className="empty-state" style={{ height: '200px' }}>
+                      <div className="empty-state-title">No periods to display</div>
+                      <div className="empty-state-desc">
+                        Add income or expenses, then adjust the date range.
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Accounts section */}
+                  {currentFile && (currentFile.accounts ?? []).length > 0 && calculationResult && (
+                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: '4px' }}>
+                      <div className="panel-header">
+                        <span className="panel-title">Account Balances</span>
+                      </div>
+                      <AccountsTable
+                        accounts={currentFile.accounts}
+                        periods={calculationResult.periods}
+                        currency={currency}
+                        todayPeriodKey={todayPeriodKey}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+            </div>
+          </div>
         </div>
+
+        {/* Right rail */}
+        <RightRail
+          accounts={currentFile?.accounts ?? []}
+          periods={periods}
+          currency={currency}
+          viewScale={viewScale}
+          onScaleChange={setViewScale}
+          todayPeriodKey={todayPeriodKey}
+          scrollRef={scrollRef}
+          colWidth={COL_WIDTH}
+          labelWidth={LABEL_WIDTH}
+        />
       </div>
 
       {/* Modals */}
@@ -268,11 +329,41 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     background: 'var(--bg-base)'
   },
+  pageHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '14px 20px 10px',
+    borderBottom: '1px solid var(--border)',
+    background: 'var(--bg-panel)',
+    flexShrink: 0,
+    gap: '12px'
+  },
+  statRow: {
+    display: 'flex',
+    gap: '8px',
+    padding: '10px 16px',
+    borderBottom: '1px solid var(--border)',
+    background: 'var(--bg-base)',
+    flexShrink: 0
+  },
+  pageTitle: {
+    fontSize: '18px',
+    fontWeight: 700,
+    letterSpacing: '-0.02em',
+    margin: 0,
+    color: 'var(--text-primary)'
+  },
+  pageSub: {
+    fontSize: '12px',
+    color: 'var(--text-muted)',
+    marginTop: '2px'
+  },
   toolbar: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: '10px 16px',
+    padding: '8px 16px',
     borderBottom: '1px solid var(--border)',
     background: 'var(--bg-panel)',
     gap: '12px',
